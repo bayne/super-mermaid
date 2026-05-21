@@ -21,8 +21,15 @@ vi.mock("nanoid", () => {
   };
 });
 
+vi.mock("@/lib/claude-client", () => ({
+  streamChatMessage: vi.fn(),
+}));
+
 import { useChatSync } from "../use-chat-sync";
 import { supabase } from "@/lib/supabase";
+import { streamChatMessage } from "@/lib/claude-client";
+
+const mockStreamChatMessage = vi.mocked(streamChatMessage);
 
 function createMockChannel() {
   const listeners: Record<string, (payload: unknown) => void> = {};
@@ -257,21 +264,9 @@ describe("useChatSync", () => {
       const channel = createMockChannel();
       const { mockInsert } = mockHistoryData([]);
 
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        body: {
-          getReader: () => ({
-            read: vi
-              .fn()
-              .mockResolvedValueOnce({
-                done: false,
-                value: new TextEncoder().encode(
-                  'data: {"delta":"Hi"}\n\ndata: [DONE]\n\n'
-                ),
-              })
-              .mockResolvedValueOnce({ done: true, value: undefined }),
-          }),
-        },
+      mockStreamChatMessage.mockImplementation(async ({ onDelta }) => {
+        onDelta("Hi");
+        return "Hi";
       });
 
       const { result } = renderHook(() =>
@@ -309,10 +304,7 @@ describe("useChatSync", () => {
       const channel = createMockChannel();
       mockHistoryData([]);
 
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        json: vi.fn().mockResolvedValue({ error: "Invalid key" }),
-      });
+      mockStreamChatMessage.mockRejectedValue(new Error("Invalid key"));
 
       const { result } = renderHook(() =>
         useChatSync(channel as never, "test-diagram")
@@ -338,21 +330,9 @@ describe("useChatSync", () => {
       const channel = createMockChannel();
       mockHistoryData([]);
 
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        body: {
-          getReader: () => ({
-            read: vi
-              .fn()
-              .mockResolvedValueOnce({
-                done: false,
-                value: new TextEncoder().encode(
-                  'data: {"delta":"Response"}\n\ndata: [DONE]\n\n'
-                ),
-              })
-              .mockResolvedValueOnce({ done: true, value: undefined }),
-          }),
-        },
+      mockStreamChatMessage.mockImplementation(async ({ onDelta }) => {
+        onDelta("Response");
+        return "Response";
       });
 
       const { result } = renderHook(() =>
@@ -379,11 +359,11 @@ describe("useChatSync", () => {
       expect(result.current.streamingContent).toBeNull();
     });
 
-    it("handles fetch failure", async () => {
+    it("handles stream failure", async () => {
       const channel = createMockChannel();
       mockHistoryData([]);
 
-      global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
+      mockStreamChatMessage.mockRejectedValue(new Error("Network error"));
 
       const { result } = renderHook(() =>
         useChatSync(channel as never, "test-diagram")
@@ -405,26 +385,11 @@ describe("useChatSync", () => {
       expect(errorMsg?.content).toContain("Network error");
     });
 
-    it("handles stream error in SSE data", async () => {
+    it("passes Anthropic auth config to streamChatMessage", async () => {
       const channel = createMockChannel();
       mockHistoryData([]);
 
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        body: {
-          getReader: () => ({
-            read: vi
-              .fn()
-              .mockResolvedValueOnce({
-                done: false,
-                value: new TextEncoder().encode(
-                  'data: {"error":"Rate limited"}\n\n'
-                ),
-              })
-              .mockResolvedValueOnce({ done: true, value: undefined }),
-          }),
-        },
-      });
+      mockStreamChatMessage.mockResolvedValue("");
 
       const { result } = renderHook(() =>
         useChatSync(channel as never, "test-diagram")
@@ -440,32 +405,19 @@ describe("useChatSync", () => {
         );
       });
 
-      const errorMsg = result.current.messages.find(
-        (m) => m.role === "assistant"
+      expect(mockStreamChatMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          auth: { provider: "anthropic", apiKey: "sk-ant-test", model: "claude-sonnet-4-6" },
+          messages: [{ role: "user", content: "Hello" }],
+        })
       );
-      expect(errorMsg?.content).toContain("Rate limited");
     });
 
-    it("sends Bedrock credentials in headers", async () => {
+    it("passes Bedrock auth config to streamChatMessage", async () => {
       const channel = createMockChannel();
       mockHistoryData([]);
 
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        body: {
-          getReader: () => ({
-            read: vi
-              .fn()
-              .mockResolvedValueOnce({
-                done: false,
-                value: new TextEncoder().encode(
-                  'data: {"delta":"OK"}\n\ndata: [DONE]\n\n'
-                ),
-              })
-              .mockResolvedValueOnce({ done: true, value: undefined }),
-          }),
-        },
-      });
+      mockStreamChatMessage.mockResolvedValue("");
 
       const { result } = renderHook(() =>
         useChatSync(channel as never, "test-diagram")
@@ -488,41 +440,25 @@ describe("useChatSync", () => {
         );
       });
 
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/chat",
+      expect(mockStreamChatMessage).toHaveBeenCalledWith(
         expect.objectContaining({
-          headers: expect.objectContaining({
-            "x-provider": "bedrock",
-            "x-model": "us.anthropic.claude-sonnet-4-6-v1:0",
-            "x-aws-access-key": "AKIA123",
-            "x-aws-secret-key": "secret",
-            "x-aws-region": "us-west-2",
-            "x-aws-session-token": "token",
-          }),
+          auth: {
+            provider: "bedrock",
+            accessKeyId: "AKIA123",
+            secretAccessKey: "secret",
+            region: "us-west-2",
+            sessionToken: "token",
+            model: "us.anthropic.claude-sonnet-4-6-v1:0",
+          },
         })
       );
     });
 
-    it("sends Bedrock credentials without session token", async () => {
+    it("passes Bedrock auth without session token", async () => {
       const channel = createMockChannel();
       mockHistoryData([]);
 
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        body: {
-          getReader: () => ({
-            read: vi
-              .fn()
-              .mockResolvedValueOnce({
-                done: false,
-                value: new TextEncoder().encode(
-                  'data: {"delta":"OK"}\n\ndata: [DONE]\n\n'
-                ),
-              })
-              .mockResolvedValueOnce({ done: true, value: undefined }),
-          }),
-        },
-      });
+      mockStreamChatMessage.mockResolvedValue("");
 
       const { result } = renderHook(() =>
         useChatSync(channel as never, "test-diagram")
@@ -544,10 +480,35 @@ describe("useChatSync", () => {
         );
       });
 
-      const callHeaders = (global.fetch as ReturnType<typeof vi.fn>).mock
-        .calls[0][1].headers;
-      expect(callHeaders["x-provider"]).toBe("bedrock");
-      expect(callHeaders["x-aws-session-token"]).toBeUndefined();
+      const callAuth = mockStreamChatMessage.mock.calls[0][0].auth;
+      expect(callAuth.provider).toBe("bedrock");
+      expect(callAuth).not.toHaveProperty("sessionToken");
+    });
+
+    it("includes system prompt with diagram content", async () => {
+      const channel = createMockChannel();
+      mockHistoryData([]);
+
+      mockStreamChatMessage.mockResolvedValue("");
+
+      const { result } = renderHook(() =>
+        useChatSync(channel as never, "test-diagram")
+      );
+
+      await act(async () => {
+        await result.current.sendMessage(
+          "Hello",
+          "graph TD\n  A-->B",
+          { provider: "anthropic" as const, apiKey: "sk-ant-test", model: "claude-sonnet-4-6" },
+          "Alice",
+          "#E63946"
+        );
+      });
+
+      const systemPrompt = mockStreamChatMessage.mock.calls[0][0].systemPrompt;
+      expect(systemPrompt).toContain("graph TD");
+      expect(systemPrompt).toContain("A-->B");
+      expect(systemPrompt).toContain("Super Mermaid");
     });
   });
 });

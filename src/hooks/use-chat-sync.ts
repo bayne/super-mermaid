@@ -10,6 +10,7 @@ import type {
   ChatStreamEnd,
 } from "@/lib/types";
 import type { ClaudeAuthConfig } from "@/lib/claude-auth";
+import { streamChatMessage } from "@/lib/claude-client";
 
 export function useChatSync(
   channel: RealtimeChannel | null,
@@ -145,77 +146,36 @@ export function useChatSync(
       const assistantId = nanoid(12);
       let fullContent = "";
 
+      const systemPrompt = `You are a helpful AI assistant embedded in Super Mermaid, a collaborative Mermaid.js diagram editor. Multiple users are collaborating on the same diagram and can all see this chat.
+
+Here is the current diagram code:
+
+\`\`\`mermaid
+${diagramContent}
+\`\`\`
+
+Help users with their diagrams: explain syntax, suggest improvements, debug errors, or generate new diagram code. When suggesting diagram changes, output the full updated mermaid code in a fenced code block so users can copy it.
+
+Keep responses concise and focused on the diagram work.`;
+
       try {
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-          "x-provider": authConfig.provider,
-          "x-model": authConfig.model,
-        };
-        if (authConfig.provider === "anthropic") {
-          headers["x-anthropic-key"] = authConfig.apiKey;
-        } else {
-          headers["x-aws-access-key"] = authConfig.accessKeyId;
-          headers["x-aws-secret-key"] = authConfig.secretAccessKey;
-          headers["x-aws-region"] = authConfig.region;
-          if (authConfig.sessionToken) {
-            headers["x-aws-session-token"] = authConfig.sessionToken;
-          }
-        }
-
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            messages: allMessages,
-            diagramContent,
-          }),
+        await streamChatMessage({
+          auth: authConfig,
+          systemPrompt,
+          messages: allMessages,
+          onDelta: (delta) => {
+            fullContent += delta;
+            setStreamingContent(fullContent);
+            channel?.send({
+              type: "broadcast",
+              event: "chat_stream_chunk",
+              payload: {
+                messageId: assistantId,
+                delta,
+              } satisfies ChatStreamChunk,
+            });
+          },
         });
-
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || "API request failed");
-        }
-
-        const reader = res.body!.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n\n");
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith("data: ")) continue;
-            const data = trimmed.slice(6);
-            if (data === "[DONE]") continue;
-
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.error) throw new Error(parsed.error);
-              if (parsed.delta) {
-                fullContent += parsed.delta;
-                setStreamingContent(fullContent);
-                channel?.send({
-                  type: "broadcast",
-                  event: "chat_stream_chunk",
-                  payload: {
-                    messageId: assistantId,
-                    delta: parsed.delta,
-                  } satisfies ChatStreamChunk,
-                });
-              }
-            } catch (e) {
-              if (e instanceof Error && e.message !== "Unexpected end of JSON input") {
-                throw e;
-              }
-            }
-          }
-        }
       } catch (err) {
         fullContent =
           fullContent ||
