@@ -35,7 +35,18 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      get_diagram: {
+        Args: { p_id: string };
+        Returns: {
+          id: string;
+          title: string;
+          content: string;
+          created_at: string;
+          updated_at: string;
+        }[];
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

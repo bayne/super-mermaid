@@ -21,9 +21,7 @@ export function useDiagramSync(
   useEffect(() => {
     async function load() {
       const { data } = await supabase
-        .from("diagrams")
-        .select("content, title")
-        .eq("id", diagramId)
+        .rpc("get_diagram", { p_id: diagramId })
         .single();
 
       if (data) {

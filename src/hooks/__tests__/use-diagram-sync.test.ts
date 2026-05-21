@@ -4,6 +4,10 @@ import type { ContentUpdate } from "@/lib/types";
 
 type BroadcastHandler = (payload: { payload: ContentUpdate | { title: string } }) => void;
 
+const mockRpc = {
+  single: vi.fn().mockResolvedValue({ data: null, error: null }),
+};
+
 const mockFrom = {
   select: vi.fn().mockReturnThis(),
   insert: vi.fn().mockReturnThis(),
@@ -46,6 +50,7 @@ vi.mock("@/lib/supabase", () => ({
     channel: vi.fn(),
     removeChannel: vi.fn(),
     from: vi.fn(() => mockFrom),
+    rpc: vi.fn(() => mockRpc),
   },
 }));
 
@@ -55,7 +60,7 @@ describe("useDiagramSync", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
-    mockFrom.single.mockResolvedValue({ data: null, error: null });
+    mockRpc.single.mockResolvedValue({ data: null, error: null });
     cleanup();
   });
 
@@ -68,7 +73,7 @@ describe("useDiagramSync", () => {
   });
 
   it("loads content from DB on mount", async () => {
-    mockFrom.single.mockResolvedValue({
+    mockRpc.single.mockResolvedValue({
       data: { content: "db content", title: "DB Title" },
       error: null,
     });
@@ -84,7 +89,7 @@ describe("useDiagramSync", () => {
   });
 
   it("creates new diagram when DB returns null", async () => {
-    mockFrom.single.mockResolvedValue({ data: null, error: null });
+    mockRpc.single.mockResolvedValue({ data: null, error: null });
 
     renderHook(() => useDiagramSync(null, "test-id", "default content"));
 
@@ -134,7 +139,7 @@ describe("useDiagramSync", () => {
   });
 
   it("saves to DB with 2000ms debounce", async () => {
-    mockFrom.single.mockResolvedValue({
+    mockRpc.single.mockResolvedValue({
       data: { content: "existing", title: "Title" },
       error: null,
     });
