@@ -11,7 +11,7 @@ export function PreviewPanel({ svg, error }: Props) {
       <div className="flex-1 overflow-auto p-4">
         {svg ? (
           <div
-            className="flex items-center justify-center"
+            className="flex items-center justify-center [&>svg]:max-w-full [&>svg]:h-auto"
             dangerouslySetInnerHTML={{ __html: svg }}
           />
         ) : (

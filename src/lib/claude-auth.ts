@@ -23,10 +23,10 @@ export const ANTHROPIC_MODELS = [
 
 export const BEDROCK_MODELS = [
   { id: "us.anthropic.claude-sonnet-4-6-v1:0", label: "Sonnet 4.6 (cross-region)" },
-  { id: "us.anthropic.claude-opus-4-6-v1:0", label: "Opus 4.6 (cross-region)" },
+  { id: "us.anthropic.claude-opus-4-6-v1[1m]", label: "Opus 4.6 1M (cross-region)" },
   { id: "us.anthropic.claude-haiku-4-5-v1:0", label: "Haiku 4.5 (cross-region)" },
   { id: "anthropic.claude-sonnet-4-6-v1:0", label: "Sonnet 4.6" },
-  { id: "anthropic.claude-opus-4-6-v1:0", label: "Opus 4.6" },
+  { id: "anthropic.claude-opus-4-6-v1[1m]", label: "Opus 4.6 1M" },
   { id: "anthropic.claude-haiku-4-5-v1:0", label: "Haiku 4.5" },
 ] as const;
 

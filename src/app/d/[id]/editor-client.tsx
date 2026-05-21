@@ -118,9 +118,9 @@ function EditorInner({
         onUserChange={onUserChange}
       />
       <PresenceBar users={onlineUsers} currentUserId={user.userId} />
-      <div className="flex min-h-0 flex-1 flex-col md:grid md:grid-rows-2">
-        <div className="flex min-h-0 flex-[2] flex-col md:flex-row">
-          <div className="min-h-0 flex-1 border-b border-gray-200 dark:border-gray-800 md:w-1/2 md:flex-none md:border-b-0 md:border-r">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col md:grid md:grid-rows-2">
+        <div className="flex min-h-0 min-w-0 flex-[2] flex-col md:flex-row">
+          <div className="min-h-0 min-w-0 flex-1 border-b border-gray-200 dark:border-gray-800 md:w-1/2 md:flex-none md:border-b-0 md:border-r">
             <EditorPanel
               content={content}
               onChange={updateContent}
@@ -130,7 +130,7 @@ function EditorInner({
               errorLine={errorLine}
             />
           </div>
-          <div className="min-h-0 flex-1 md:w-1/2 md:flex-none">
+          <div className="min-h-0 min-w-0 flex-1 md:w-1/2 md:flex-none">
             <PreviewPanel svg={svg} error={error} />
           </div>
         </div>

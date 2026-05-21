@@ -29,7 +29,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="h-full bg-background text-foreground font-sans">
+      <body className="h-full overflow-x-hidden bg-background text-foreground font-sans">
         {children}
         <Analytics />
         <SpeedInsights />
