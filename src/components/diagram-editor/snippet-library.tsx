@@ -30,7 +30,7 @@ export function SnippetLibrary({ content, cursorLine, onInsert }: Props) {
 
   return (
     <div className="border-t border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900">
-      <div className="flex gap-1.5 overflow-x-auto">
+      <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
         {sortedSnippets.map((snippet) => (
           <button
             key={snippet.label}

@@ -28,6 +28,7 @@ body {
 /* CodeMirror fills its container */
 .cm-editor {
   height: 100% !important;
+  font-size: 0.875rem;
 }
 
 .cm-scroller {

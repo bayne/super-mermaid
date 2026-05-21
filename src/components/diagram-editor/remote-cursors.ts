@@ -29,9 +29,9 @@ class RemoteCursorWidget extends WidgetType {
 
     const cursor = document.createElement("span");
     cursor.style.borderLeft = `2px solid ${this.color}`;
-    cursor.style.height = "1.2em";
+    cursor.style.height = "1.4em";
     cursor.style.position = "absolute";
-    cursor.style.top = "0";
+    cursor.style.bottom = "0";
     cursor.style.left = "0";
     cursor.style.pointerEvents = "none";
 
@@ -42,7 +42,7 @@ class RemoteCursorWidget extends WidgetType {
     label.style.padding = "1px 4px";
     label.style.borderRadius = "2px";
     label.style.position = "absolute";
-    label.style.top = "-1.4em";
+    label.style.bottom = "100%";
     label.style.left = "0";
     label.style.whiteSpace = "nowrap";
     label.style.pointerEvents = "none";

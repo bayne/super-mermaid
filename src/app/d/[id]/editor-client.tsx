@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useSyncExternalStore, useState, useCallback } from "react";
-import { getUserIdentity, type UserIdentity } from "@/lib/user-identity";
+import {
+  getUserIdentity,
+  updateUserIdentity,
+  type UserIdentity,
+} from "@/lib/user-identity";
 import { getClaudeAuth, type ClaudeAuthConfig } from "@/lib/claude-auth";
 import { EditorPanel } from "@/components/diagram-editor/editor-panel";
 import { PreviewPanel } from "@/components/diagram-editor/preview-panel";
@@ -22,16 +26,30 @@ interface Props {
   defaultContent: string;
 }
 
-const subscribe = () => () => {};
-const serverSnapshot = (): UserIdentity | null => null;
+const identityListeners = new Set<() => void>();
+
+function subscribeIdentity(callback: () => void) {
+  identityListeners.add(callback);
+  return () => {
+    identityListeners.delete(callback);
+  };
+}
+
+function getServerIdentity(): UserIdentity | null {
+  return null;
+}
 
 export function EditorClient({ diagramId, defaultContent }: Props) {
-  const initialUser = useSyncExternalStore(
-    subscribe,
+  const user = useSyncExternalStore(
+    subscribeIdentity,
     getUserIdentity,
-    serverSnapshot
+    getServerIdentity
   );
-  const [user, setUser] = useState<UserIdentity | null>(initialUser);
+
+  const handleUserChange = useCallback((updated: UserIdentity) => {
+    updateUserIdentity({ name: updated.name, color: updated.color });
+    for (const listener of identityListeners) listener();
+  }, []);
 
   if (!user) return null;
 
@@ -40,7 +58,7 @@ export function EditorClient({ diagramId, defaultContent }: Props) {
       diagramId={diagramId}
       defaultContent={defaultContent}
       user={user}
-      onUserChange={setUser}
+      onUserChange={handleUserChange}
     />
   );
 }
@@ -100,9 +118,9 @@ function EditorInner({
         onUserChange={onUserChange}
       />
       <PresenceBar users={onlineUsers} currentUserId={user.userId} />
-      <div className="grid min-h-0 flex-1 grid-rows-2">
-        <div className="flex min-h-0">
-          <div className="w-1/2 border-r border-gray-200 dark:border-gray-800">
+      <div className="flex min-h-0 flex-1 flex-col md:grid md:grid-rows-2">
+        <div className="flex min-h-0 flex-[2] flex-col md:flex-row">
+          <div className="min-h-0 flex-1 border-b border-gray-200 dark:border-gray-800 md:w-1/2 md:flex-none md:border-b-0 md:border-r">
             <EditorPanel
               content={content}
               onChange={updateContent}
@@ -112,11 +130,11 @@ function EditorInner({
               errorLine={errorLine}
             />
           </div>
-          <div className="w-1/2">
+          <div className="min-h-0 flex-1 md:w-1/2 md:flex-none">
             <PreviewPanel svg={svg} error={error} />
           </div>
         </div>
-        <div className="min-h-0">
+        <div className="min-h-0 flex-1">
           <ChatPanel
             messages={messages}
             streamingContent={streamingContent}

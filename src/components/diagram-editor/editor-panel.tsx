@@ -83,7 +83,7 @@ export function EditorPanel({
           extensions={extensions}
           theme={darkMode ? "dark" : "light"}
           height="100%"
-          className="h-full text-sm"
+          className="h-full"
           basicSetup={{
             lineNumbers: true,
             foldGutter: true,

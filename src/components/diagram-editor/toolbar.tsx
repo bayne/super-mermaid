@@ -41,8 +41,8 @@ export function Toolbar({
   return (
     <>
       <div className="flex items-center gap-3 border-b border-gray-200 px-4 py-2 dark:border-gray-800">
-        <span className="text-lg font-bold">Super Mermaid</span>
-        <span className="text-gray-300 dark:text-gray-700">|</span>
+        <span className="hidden text-lg font-bold md:inline">Super Mermaid</span>
+        <span className="hidden text-gray-300 md:inline dark:text-gray-700">|</span>
         <input
           type="text"
           value={title}
@@ -58,13 +58,13 @@ export function Toolbar({
         </button>
         <button
           onClick={() => setShowSettings(true)}
-          className="flex items-center gap-2 rounded px-3 py-1 text-sm transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+          className="flex max-w-[8rem] items-center gap-2 rounded px-3 py-1 text-sm transition-colors hover:bg-gray-100 md:max-w-none dark:hover:bg-gray-800"
         >
           <span
-            className="inline-block h-3 w-3 rounded-full"
+            className="inline-block h-3 w-3 shrink-0 rounded-full"
             style={{ backgroundColor: user.color }}
           />
-          {user.name}
+          <span className="truncate">{user.name}</span>
         </button>
       </div>
 
