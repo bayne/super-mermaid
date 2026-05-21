@@ -282,7 +282,7 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "Hello",
           "graph TD",
-          { provider: "anthropic" as const, apiKey: "sk-ant-test" },
+          { provider: "anthropic" as const, apiKey: "sk-ant-test", model: "claude-sonnet-4-6" },
           "Alice",
           "#E63946"
         );
@@ -322,7 +322,7 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "Hello",
           "graph TD",
-          { provider: "anthropic" as const, apiKey: "bad-key" },
+          { provider: "anthropic" as const, apiKey: "bad-key", model: "claude-sonnet-4-6" },
           "Alice",
           "#E63946"
         );
@@ -363,7 +363,7 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "Q",
           "graph TD",
-          { provider: "anthropic" as const, apiKey: "sk-ant-test" },
+          { provider: "anthropic" as const, apiKey: "sk-ant-test", model: "claude-sonnet-4-6" },
           "Alice",
           "#E63946"
         );
@@ -393,7 +393,7 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "Hello",
           "graph TD",
-          { provider: "anthropic" as const, apiKey: "sk-ant-test" },
+          { provider: "anthropic" as const, apiKey: "sk-ant-test", model: "claude-sonnet-4-6" },
           "Alice",
           "#E63946"
         );
@@ -434,7 +434,7 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "Hello",
           "graph TD",
-          { provider: "anthropic" as const, apiKey: "sk-ant-test" },
+          { provider: "anthropic" as const, apiKey: "sk-ant-test", model: "claude-sonnet-4-6" },
           "Alice",
           "#E63946"
         );
@@ -481,6 +481,7 @@ describe("useChatSync", () => {
             secretAccessKey: "secret",
             region: "us-west-2",
             sessionToken: "token",
+            model: "us.anthropic.claude-sonnet-4-6-v1:0",
           },
           "Alice",
           "#E63946"
@@ -492,6 +493,7 @@ describe("useChatSync", () => {
         expect.objectContaining({
           headers: expect.objectContaining({
             "x-provider": "bedrock",
+            "x-model": "us.anthropic.claude-sonnet-4-6-v1:0",
             "x-aws-access-key": "AKIA123",
             "x-aws-secret-key": "secret",
             "x-aws-region": "us-west-2",
@@ -535,6 +537,7 @@ describe("useChatSync", () => {
             accessKeyId: "AKIA123",
             secretAccessKey: "secret",
             region: "us-east-1",
+            model: "us.anthropic.claude-sonnet-4-6-v1:0",
           },
           "Alice",
           "#E63946"

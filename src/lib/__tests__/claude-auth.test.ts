@@ -19,6 +19,7 @@ describe("claude-auth", () => {
     const config: ClaudeAuthConfig = {
       provider: "anthropic",
       apiKey: "sk-ant-test123",
+      model: "claude-sonnet-4-6",
     };
     setClaudeAuth(config);
     expect(getClaudeAuth()).toEqual(config);
@@ -30,6 +31,7 @@ describe("claude-auth", () => {
       accessKeyId: "AKIA...",
       secretAccessKey: "secret",
       region: "us-west-2",
+      model: "us.anthropic.claude-sonnet-4-6-v1:0",
     };
     setClaudeAuth(config);
     expect(getClaudeAuth()).toEqual(config);
@@ -42,24 +44,26 @@ describe("claude-auth", () => {
       secretAccessKey: "secret",
       region: "us-east-1",
       sessionToken: "token123",
+      model: "us.anthropic.claude-sonnet-4-6-v1:0",
     };
     setClaudeAuth(config);
     expect(getClaudeAuth()).toEqual(config);
   });
 
   it("clears auth", () => {
-    setClaudeAuth({ provider: "anthropic", apiKey: "sk-ant-test" });
+    setClaudeAuth({ provider: "anthropic", apiKey: "sk-ant-test", model: "claude-sonnet-4-6" });
     clearClaudeAuth();
     expect(getClaudeAuth()).toBeNull();
   });
 
   it("overwrites existing auth", () => {
-    setClaudeAuth({ provider: "anthropic", apiKey: "sk-ant-old" });
+    setClaudeAuth({ provider: "anthropic", apiKey: "sk-ant-old", model: "claude-sonnet-4-6" });
     const newConfig: ClaudeAuthConfig = {
       provider: "bedrock",
       accessKeyId: "AKIA",
       secretAccessKey: "secret",
       region: "eu-west-1",
+      model: "us.anthropic.claude-sonnet-4-6-v1:0",
     };
     setClaudeAuth(newConfig);
     expect(getClaudeAuth()).toEqual(newConfig);

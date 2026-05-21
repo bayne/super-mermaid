@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
-vi.mock("@/lib/claude-auth", () => ({
-  getClaudeAuth: vi.fn(() => null),
-  setClaudeAuth: vi.fn(),
-  clearClaudeAuth: vi.fn(),
-}));
+vi.mock("@/lib/claude-auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/claude-auth")>();
+  return {
+    ...actual,
+    getClaudeAuth: vi.fn(() => null),
+    setClaudeAuth: vi.fn(),
+    clearClaudeAuth: vi.fn(),
+  };
+});
 
 import { ChatPanel } from "../chat-panel";
 import { setClaudeAuth, clearClaudeAuth } from "@/lib/claude-auth";
@@ -13,6 +17,7 @@ import { setClaudeAuth, clearClaudeAuth } from "@/lib/claude-auth";
 const anthropicAuth = {
   provider: "anthropic" as const,
   apiKey: "sk-ant-test",
+  model: "claude-sonnet-4-6",
 };
 
 const bedrockAuth = {
@@ -20,6 +25,7 @@ const bedrockAuth = {
   accessKeyId: "AKIA",
   secretAccessKey: "secret",
   region: "us-east-1",
+  model: "us.anthropic.claude-sonnet-4-6-v1:0",
 };
 
 describe("ChatPanel", () => {
@@ -179,10 +185,12 @@ describe("ChatPanel", () => {
     expect(setClaudeAuth).toHaveBeenCalledWith({
       provider: "anthropic",
       apiKey: "sk-ant-test123",
+      model: "claude-sonnet-4-6",
     });
     expect(defaultProps.onAuthChange).toHaveBeenCalledWith({
       provider: "anthropic",
       apiKey: "sk-ant-test123",
+      model: "claude-sonnet-4-6",
     });
   });
 
@@ -205,6 +213,7 @@ describe("ChatPanel", () => {
       accessKeyId: "AKIA123",
       secretAccessKey: "secret123",
       region: "us-west-2",
+      model: "us.anthropic.claude-sonnet-4-6-v1:0",
     });
   });
 
@@ -303,6 +312,7 @@ describe("ChatPanel", () => {
     expect(setClaudeAuth).toHaveBeenCalledWith({
       provider: "anthropic",
       apiKey: "sk-ant-enter",
+      model: "claude-sonnet-4-6",
     });
   });
 });

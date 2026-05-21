@@ -149,6 +149,7 @@ export function useChatSync(
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
           "x-provider": authConfig.provider,
+          "x-model": authConfig.model,
         };
         if (authConfig.provider === "anthropic") {
           headers["x-anthropic-key"] = authConfig.apiKey;

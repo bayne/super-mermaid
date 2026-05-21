@@ -4,6 +4,10 @@ import { useState, useRef, useEffect } from "react";
 import {
   setClaudeAuth,
   clearClaudeAuth,
+  ANTHROPIC_MODELS,
+  BEDROCK_MODELS,
+  DEFAULT_ANTHROPIC_MODEL,
+  DEFAULT_BEDROCK_MODEL,
   type ClaudeAuthConfig,
 } from "@/lib/claude-auth";
 import type { ChatMessage } from "@/lib/types";
@@ -160,11 +164,13 @@ function AuthForm({
   const [secretAccessKey, setSecretAccessKey] = useState("");
   const [region, setRegion] = useState("us-east-1");
   const [sessionToken, setSessionToken] = useState("");
+  const [anthropicModel, setAnthropicModel] = useState<string>(DEFAULT_ANTHROPIC_MODEL);
+  const [bedrockModel, setBedrockModel] = useState<string>(DEFAULT_BEDROCK_MODEL);
 
   function handleSave() {
     if (provider === "anthropic") {
       if (!apiKey.trim()) return;
-      onSave({ provider: "anthropic", apiKey: apiKey.trim() });
+      onSave({ provider: "anthropic", apiKey: apiKey.trim(), model: anthropicModel });
     } else {
       if (!accessKeyId.trim() || !secretAccessKey.trim()) return;
       onSave({
@@ -172,6 +178,7 @@ function AuthForm({
         accessKeyId: accessKeyId.trim(),
         secretAccessKey: secretAccessKey.trim(),
         region: region.trim() || "us-east-1",
+        model: bedrockModel,
         ...(sessionToken.trim()
           ? { sessionToken: sessionToken.trim() }
           : {}),
@@ -180,6 +187,8 @@ function AuthForm({
   }
 
   const inputClass =
+    "w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200";
+  const selectClass =
     "w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200";
 
   return (
@@ -210,15 +219,28 @@ function AuthForm({
       </div>
 
       {provider === "anthropic" ? (
-        <div className="flex items-center gap-2">
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="sk-ant-..."
-            className={inputClass + " flex-1"}
-            onKeyDown={(e) => e.key === "Enter" && handleSave()}
-          />
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="sk-ant-..."
+              className={inputClass + " flex-1"}
+              onKeyDown={(e) => e.key === "Enter" && handleSave()}
+            />
+          </div>
+          <select
+            value={anthropicModel}
+            onChange={(e) => setAnthropicModel(e.target.value)}
+            className={selectClass}
+          >
+            {ANTHROPIC_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">
@@ -255,6 +277,17 @@ function AuthForm({
               onKeyDown={(e) => e.key === "Enter" && handleSave()}
             />
           </div>
+          <select
+            value={bedrockModel}
+            onChange={(e) => setBedrockModel(e.target.value)}
+            className={selectClass}
+          >
+            {BEDROCK_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 

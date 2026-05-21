@@ -3,6 +3,7 @@ const STORAGE_KEY = "super-mermaid-claude-auth";
 export interface AnthropicAuth {
   provider: "anthropic";
   apiKey: string;
+  model: string;
 }
 
 export interface BedrockAuth {
@@ -11,7 +12,26 @@ export interface BedrockAuth {
   secretAccessKey: string;
   region: string;
   sessionToken?: string;
+  model: string;
 }
+
+export const ANTHROPIC_MODELS = [
+  { id: "claude-sonnet-4-6", label: "Sonnet 4.6" },
+  { id: "claude-opus-4-6", label: "Opus 4.6" },
+  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
+] as const;
+
+export const BEDROCK_MODELS = [
+  { id: "us.anthropic.claude-sonnet-4-6-v1:0", label: "Sonnet 4.6 (cross-region)" },
+  { id: "us.anthropic.claude-opus-4-6-v1:0", label: "Opus 4.6 (cross-region)" },
+  { id: "us.anthropic.claude-haiku-4-5-v1:0", label: "Haiku 4.5 (cross-region)" },
+  { id: "anthropic.claude-sonnet-4-6-v1:0", label: "Sonnet 4.6" },
+  { id: "anthropic.claude-opus-4-6-v1:0", label: "Opus 4.6" },
+  { id: "anthropic.claude-haiku-4-5-v1:0", label: "Haiku 4.5" },
+] as const;
+
+export const DEFAULT_ANTHROPIC_MODEL = ANTHROPIC_MODELS[0].id;
+export const DEFAULT_BEDROCK_MODEL = BEDROCK_MODELS[0].id;
 
 export type ClaudeAuthConfig = AnthropicAuth | BedrockAuth;
 

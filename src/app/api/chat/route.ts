@@ -8,13 +8,11 @@ interface ChatRequestBody {
   diagramContent: string;
 }
 
-const ANTHROPIC_MODEL = "claude-sonnet-4-6";
-const BEDROCK_MODEL = "us.anthropic.claude-sonnet-4-6-v1:0";
-
 function createClient(
   request: Request
 ): { client: Anthropic | AnthropicBedrock; model: string } | null {
   const provider = request.headers.get("x-provider") || "anthropic";
+  const model = request.headers.get("x-model");
 
   if (provider === "bedrock") {
     const accessKey = request.headers.get("x-aws-access-key");
@@ -22,7 +20,7 @@ function createClient(
     const region = request.headers.get("x-aws-region") || "us-east-1";
     const sessionToken = request.headers.get("x-aws-session-token");
 
-    if (!accessKey || !secretKey) return null;
+    if (!accessKey || !secretKey || !model) return null;
 
     return {
       client: new AnthropicBedrock({
@@ -31,16 +29,16 @@ function createClient(
         awsRegion: region,
         ...(sessionToken ? { awsSessionToken: sessionToken } : {}),
       }),
-      model: BEDROCK_MODEL,
+      model,
     };
   }
 
   const apiKey = request.headers.get("x-anthropic-key");
-  if (!apiKey) return null;
+  if (!apiKey || !model) return null;
 
   return {
     client: new Anthropic({ apiKey }),
-    model: ANTHROPIC_MODEL,
+    model,
   };
 }
 
