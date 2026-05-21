@@ -44,7 +44,7 @@ export function useDiagramSync(
   useEffect(() => {
     if (!channel) return;
 
-    const subscription = channel.on(
+    channel.on(
       "broadcast",
       { event: "content_update" },
       (payload: { payload: ContentUpdate }) => {
@@ -52,27 +52,19 @@ export function useDiagramSync(
         setContent(payload.payload.content);
       }
     );
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, [channel]);
 
   // Listen for remote title updates
   useEffect(() => {
     if (!channel) return;
 
-    const subscription = channel.on(
+    channel.on(
       "broadcast",
       { event: "title_update" },
       (payload: { payload: { title: string } }) => {
         setTitle(payload.payload.title);
       }
     );
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, [channel]);
 
   const saveToDb = useCallback(

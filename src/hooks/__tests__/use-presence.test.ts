@@ -56,13 +56,13 @@ describe("usePresence", () => {
   });
 
   it("returns empty users when channel is null", () => {
-    const { result } = renderHook(() => usePresence(null, mockUser));
+    const { result } = renderHook(() => usePresence(null, mockUser, false));
     expect(result.current.onlineUsers).toEqual([]);
   });
 
   it("tracks user presence on mount", () => {
     const channel = createMockChannel();
-    renderHook(() => usePresence(channel as any, mockUser));
+    renderHook(() => usePresence(channel as any, mockUser, true));
 
     expect(channel.track).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -75,7 +75,7 @@ describe("usePresence", () => {
 
   it("untracks on unmount", () => {
     const channel = createMockChannel();
-    const { unmount } = renderHook(() => usePresence(channel as any, mockUser));
+    const { unmount } = renderHook(() => usePresence(channel as any, mockUser, true));
     unmount();
     expect(channel.untrack).toHaveBeenCalled();
   });
@@ -102,7 +102,7 @@ describe("usePresence", () => {
     };
     channel.presenceState.mockReturnValue(users);
 
-    const { result } = renderHook(() => usePresence(channel as any, mockUser));
+    const { result } = renderHook(() => usePresence(channel as any, mockUser, true));
 
     act(() => {
       channel._trigger("presence", "sync", {});

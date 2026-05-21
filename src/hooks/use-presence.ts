@@ -7,7 +7,8 @@ import type { UserIdentity } from "@/lib/user-identity";
 
 export function usePresence(
   channel: RealtimeChannel | null,
-  user: UserIdentity
+  user: UserIdentity,
+  subscribed: boolean
 ) {
   const [onlineUsers, setOnlineUsers] = useState<PresenceState[]>([]);
 
@@ -19,6 +20,10 @@ export function usePresence(
       const users = Object.values(state).flat();
       setOnlineUsers(users);
     });
+  }, [channel]);
+
+  useEffect(() => {
+    if (!channel || !subscribed) return;
 
     channel.track({
       userId: user.userId,
@@ -30,7 +35,7 @@ export function usePresence(
     return () => {
       channel.untrack();
     };
-  }, [channel, user.userId, user.name, user.color]);
+  }, [channel, subscribed, user.userId, user.name, user.color]);
 
   return { onlineUsers };
 }

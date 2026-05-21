@@ -9,6 +9,9 @@ export interface UserIdentity {
 
 const STORAGE_KEY = "super-mermaid-user";
 
+let cachedRaw: string | null = null;
+let cachedIdentity: UserIdentity | null = null;
+
 export function getUserIdentity(): UserIdentity {
   if (typeof window === "undefined") {
     return { userId: "server", name: "Anonymous", color: "#457B9D" };
@@ -16,8 +19,11 @@ export function getUserIdentity(): UserIdentity {
 
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored) {
+    if (stored === cachedRaw && cachedIdentity) return cachedIdentity;
     try {
-      return JSON.parse(stored);
+      cachedRaw = stored;
+      cachedIdentity = JSON.parse(stored);
+      return cachedIdentity!;
     } catch {
       // fall through to create new
     }
@@ -28,7 +34,10 @@ export function getUserIdentity(): UserIdentity {
     name: "Anonymous",
     color: randomColor(),
   };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(identity));
+  const raw = JSON.stringify(identity);
+  localStorage.setItem(STORAGE_KEY, raw);
+  cachedRaw = raw;
+  cachedIdentity = identity;
   return identity;
 }
 
@@ -37,6 +46,9 @@ export function updateUserIdentity(
 ): UserIdentity {
   const current = getUserIdentity();
   const updated = { ...current, ...updates };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  const raw = JSON.stringify(updated);
+  localStorage.setItem(STORAGE_KEY, raw);
+  cachedRaw = raw;
+  cachedIdentity = updated;
   return updated;
 }

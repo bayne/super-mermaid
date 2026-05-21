@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore, useState } from "react";
+import { useEffect, useSyncExternalStore, useState } from "react";
 import { getUserIdentity, type UserIdentity } from "@/lib/user-identity";
 import { EditorPanel } from "@/components/diagram-editor/editor-panel";
 import { PreviewPanel } from "@/components/diagram-editor/preview-panel";
@@ -24,7 +24,7 @@ export function EditorClient({ diagramId, defaultContent }: Props) {
   const initialUser = useSyncExternalStore(
     subscribe,
     getUserIdentity,
-    () => serverSnapshot()
+    serverSnapshot
   );
   const [user, setUser] = useState<UserIdentity | null>(initialUser);
 
@@ -40,13 +40,24 @@ function EditorInner({
   onUserChange,
 }: Props & { user: UserIdentity; onUserChange: (u: UserIdentity) => void }) {
   const channel = useRealtimeChannel(diagramId);
+  const [subscribed, setSubscribed] = useState(false);
   const { content, updateContent, title, updateTitle } = useDiagramSync(
     channel,
     diagramId,
     defaultContent
   );
-  const { onlineUsers } = usePresence(channel, user);
+  const { onlineUsers } = usePresence(channel, user, subscribed);
   const { remoteCursors, broadcastCursor } = useCursorSync(channel, user);
+
+  useEffect(() => {
+    if (!channel) return;
+    channel.subscribe((status) => {
+      if (status === "SUBSCRIBED") setSubscribed(true);
+    });
+    return () => {
+      setSubscribed(false);
+    };
+  }, [channel]);
 
   const remoteCursorArray: CursorUpdate[] = Array.from(remoteCursors.values());
 

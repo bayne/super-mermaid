@@ -16,11 +16,8 @@ export function useRealtimeChannel(
       },
     });
 
-    ch.subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        setChannel(ch);
-      }
-    });
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Expose channel before subscribe so consumers can register presence callbacks
+    setChannel(ch);
 
     return () => {
       supabase.removeChannel(ch);

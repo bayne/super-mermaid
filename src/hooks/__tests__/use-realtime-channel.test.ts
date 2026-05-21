@@ -1,13 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, act, cleanup } from "@testing-library/react";
+import { renderHook, cleanup } from "@testing-library/react";
 
-let subscribeCallback: ((status: string) => void) | null = null;
 const mockChannel = {
   on: vi.fn().mockReturnThis(),
-  subscribe: vi.fn((cb) => {
-    subscribeCallback = cb;
-    return mockChannel;
-  }),
+  subscribe: vi.fn().mockReturnThis(),
   unsubscribe: vi.fn(),
   send: vi.fn(),
   track: vi.fn(),
@@ -28,13 +24,12 @@ import { supabase } from "@/lib/supabase";
 describe("useRealtimeChannel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    subscribeCallback = null;
     cleanup();
   });
 
-  it("returns null before subscription", () => {
+  it("returns channel immediately so consumers can register callbacks before subscribe", () => {
     const { result } = renderHook(() => useRealtimeChannel("test-id"));
-    expect(result.current).toBeNull();
+    expect(result.current).toBe(mockChannel);
   });
 
   it("creates channel with correct topic", () => {
@@ -44,24 +39,9 @@ describe("useRealtimeChannel", () => {
     });
   });
 
-  it("sets channel after SUBSCRIBED status", () => {
-    const { result } = renderHook(() => useRealtimeChannel("test-id"));
-
-    act(() => {
-      subscribeCallback?.("SUBSCRIBED");
-    });
-
-    expect(result.current).toBe(mockChannel);
-  });
-
-  it("does not set channel for other statuses", () => {
-    const { result } = renderHook(() => useRealtimeChannel("test-id"));
-
-    act(() => {
-      subscribeCallback?.("CONNECTING");
-    });
-
-    expect(result.current).toBeNull();
+  it("does not subscribe (subscription is managed externally)", () => {
+    renderHook(() => useRealtimeChannel("test-id"));
+    expect(mockChannel.subscribe).not.toHaveBeenCalled();
   });
 
   it("cleans up channel on unmount", () => {
