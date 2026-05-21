@@ -33,6 +33,36 @@ export interface Database {
         };
         Relationships: [];
       };
+      chat_messages: {
+        Row: {
+          id: string;
+          diagram_id: string;
+          role: string;
+          content: string;
+          user_name: string | null;
+          user_color: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          diagram_id: string;
+          role: string;
+          content: string;
+          user_name?: string | null;
+          user_color?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          diagram_id?: string;
+          role?: string;
+          content?: string;
+          user_name?: string | null;
+          user_color?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

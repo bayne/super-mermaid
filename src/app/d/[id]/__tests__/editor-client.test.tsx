@@ -12,6 +12,12 @@ vi.mock("@/lib/user-identity", () => ({
   updateUserIdentity: vi.fn(),
 }));
 
+vi.mock("@/lib/claude-auth", () => ({
+  getClaudeAuth: vi.fn(() => null),
+  setClaudeAuth: vi.fn(),
+  clearClaudeAuth: vi.fn(),
+}));
+
 vi.mock("@/hooks/use-realtime-channel", () => ({
   useRealtimeChannel: vi.fn(() => null),
 }));
@@ -45,6 +51,14 @@ vi.mock("@/hooks/use-mermaid-render", () => ({
     svg: "<svg>test</svg>",
     error: null,
     errorLine: null,
+  })),
+}));
+
+vi.mock("@/hooks/use-chat-sync", () => ({
+  useChatSync: vi.fn(() => ({
+    messages: [],
+    streamingContent: null,
+    sendMessage: vi.fn(),
   })),
 }));
 
@@ -123,5 +137,15 @@ describe("EditorClient", () => {
   it("renders share button", () => {
     render(<EditorClient diagramId="test-id" defaultContent="default" />);
     expect(screen.getByText("Share")).toBeInTheDocument();
+  });
+
+  it("renders chat panel", () => {
+    render(<EditorClient diagramId="test-id" defaultContent="default" />);
+    expect(screen.getByText("Shared Claude Chat")).toBeInTheDocument();
+  });
+
+  it("shows connect button when not authenticated", () => {
+    render(<EditorClient diagramId="test-id" defaultContent="default" />);
+    expect(screen.getByText("Connect")).toBeInTheDocument();
   });
 });

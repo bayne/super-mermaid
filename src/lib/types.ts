@@ -22,3 +22,21 @@ export interface ContentUpdate {
   content: string;
   timestamp: number;
 }
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  userName: string | null;
+  userColor: string | null;
+}
+
+export interface ChatStreamChunk {
+  messageId: string;
+  delta: string;
+}
+
+export interface ChatStreamEnd {
+  messageId: string;
+  content: string;
+}

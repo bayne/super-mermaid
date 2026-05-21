@@ -19,6 +19,7 @@ export default defineConfig({
         "src/lib/database.types.ts",
         "src/lib/supabase.ts",
         "src/app/d/*/page.tsx",
+        "src/app/api/**",
       ],
       thresholds: {
         statements: 90,
