@@ -10,6 +10,8 @@ import { useRealtimeChannel } from "@/hooks/use-realtime-channel";
 import { useDiagramSync } from "@/hooks/use-diagram-sync";
 import { usePresence } from "@/hooks/use-presence";
 import { useCursorSync } from "@/hooks/use-cursor-sync";
+import { useDarkMode } from "@/hooks/use-dark-mode";
+import { useMermaidRender } from "@/hooks/use-mermaid-render";
 import type { CursorUpdate } from "@/lib/types";
 
 interface Props {
@@ -30,7 +32,14 @@ export function EditorClient({ diagramId, defaultContent }: Props) {
 
   if (!user) return null;
 
-  return <EditorInner diagramId={diagramId} defaultContent={defaultContent} user={user} onUserChange={setUser} />;
+  return (
+    <EditorInner
+      diagramId={diagramId}
+      defaultContent={defaultContent}
+      user={user}
+      onUserChange={setUser}
+    />
+  );
 }
 
 function EditorInner({
@@ -41,6 +50,7 @@ function EditorInner({
 }: Props & { user: UserIdentity; onUserChange: (u: UserIdentity) => void }) {
   const channel = useRealtimeChannel(diagramId);
   const [subscribed, setSubscribed] = useState(false);
+  const darkMode = useDarkMode();
   const { content, updateContent, title, updateTitle } = useDiagramSync(
     channel,
     diagramId,
@@ -48,6 +58,7 @@ function EditorInner({
   );
   const { onlineUsers } = usePresence(channel, user, subscribed);
   const { remoteCursors, broadcastCursor } = useCursorSync(channel, user);
+  const { svg, error, errorLine } = useMermaidRender(content, darkMode);
 
   useEffect(() => {
     if (!channel) return;
@@ -71,17 +82,19 @@ function EditorInner({
         onUserChange={onUserChange}
       />
       <PresenceBar users={onlineUsers} currentUserId={user.userId} />
-      <div className="flex flex-1 min-h-0">
+      <div className="flex min-h-0 flex-1">
         <div className="w-1/2 border-r border-gray-200 dark:border-gray-800">
           <EditorPanel
             content={content}
             onChange={updateContent}
             remoteCursors={remoteCursorArray}
             onCursorChange={broadcastCursor}
+            darkMode={darkMode}
+            errorLine={errorLine}
           />
         </div>
         <div className="w-1/2">
-          <PreviewPanel content={content} />
+          <PreviewPanel svg={svg} error={error} />
         </div>
       </div>
     </div>

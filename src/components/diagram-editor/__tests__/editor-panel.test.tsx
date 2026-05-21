@@ -9,7 +9,13 @@ vi.mock("@uiw/react-codemirror", () => {
       props: {
         value: string;
         onChange?: (value: string) => void;
-        onUpdate?: (update: { selectionSet: boolean; state: { selection: { main: { head: number; anchor: number } } } }) => void;
+        onUpdate?: (update: {
+          selectionSet: boolean;
+          state: {
+            selection: { main: { head: number; anchor: number } };
+            doc: { lineAt: (pos: number) => { number: number } };
+          };
+        }) => void;
       },
       ref: React.Ref<unknown>
     ) {
@@ -28,7 +34,10 @@ vi.mock("@uiw/react-codemirror", () => {
           onFocus={() =>
             props.onUpdate?.({
               selectionSet: true,
-              state: { selection: { main: { head: 0, anchor: 0 } } },
+              state: {
+                selection: { main: { head: 0, anchor: 0 } },
+                doc: { lineAt: () => ({ number: 1 }) },
+              },
             })
           }
         />
@@ -41,9 +50,22 @@ vi.mock("codemirror-lang-mermaid", () => ({
   mermaid: vi.fn(() => []),
 }));
 
+vi.mock("@codemirror/theme-one-dark", () => ({
+  oneDark: [],
+}));
+
 vi.mock("../remote-cursors", () => ({
   remoteCursorField: [],
   setRemoteCursors: { of: vi.fn() },
+}));
+
+vi.mock("../error-line-highlight", () => ({
+  errorLineField: [],
+  setErrorLine: { of: vi.fn() },
+}));
+
+vi.mock("../snippet-library", () => ({
+  SnippetLibrary: () => <div data-testid="snippet-library" />,
 }));
 
 import { EditorPanel } from "../editor-panel";
@@ -54,6 +76,8 @@ describe("EditorPanel", () => {
     onChange: vi.fn(),
     remoteCursors: [],
     onCursorChange: vi.fn(),
+    darkMode: false,
+    errorLine: null,
   };
 
   it("renders with content", () => {
@@ -77,5 +101,10 @@ describe("EditorPanel", () => {
       head: 0,
       anchor: 0,
     });
+  });
+
+  it("renders snippet library", () => {
+    render(<EditorPanel {...defaultProps} />);
+    expect(screen.getByTestId("snippet-library")).toBeInTheDocument();
   });
 });

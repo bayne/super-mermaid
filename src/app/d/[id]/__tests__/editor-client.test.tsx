@@ -36,6 +36,18 @@ vi.mock("@/hooks/use-cursor-sync", () => ({
   })),
 }));
 
+vi.mock("@/hooks/use-dark-mode", () => ({
+  useDarkMode: vi.fn(() => false),
+}));
+
+vi.mock("@/hooks/use-mermaid-render", () => ({
+  useMermaidRender: vi.fn(() => ({
+    svg: "<svg>test</svg>",
+    error: null,
+    errorLine: null,
+  })),
+}));
+
 vi.mock("@uiw/react-codemirror", () => {
   const { forwardRef } = require("react");
   return {
@@ -58,13 +70,22 @@ vi.mock("codemirror-lang-mermaid", () => ({
   mermaid: vi.fn(() => []),
 }));
 
+vi.mock("@codemirror/theme-one-dark", () => ({
+  oneDark: [],
+}));
+
 vi.mock("@/components/diagram-editor/remote-cursors", () => ({
   remoteCursorField: [],
   setRemoteCursors: { of: vi.fn() },
 }));
 
-vi.mock("@/lib/mermaid-renderer", () => ({
-  renderMermaid: vi.fn().mockResolvedValue({ svg: "<svg>test</svg>", error: null }),
+vi.mock("@/components/diagram-editor/error-line-highlight", () => ({
+  errorLineField: [],
+  setErrorLine: { of: vi.fn() },
+}));
+
+vi.mock("@/components/diagram-editor/snippet-library", () => ({
+  SnippetLibrary: () => <div data-testid="snippet-library" />,
 }));
 
 import { EditorClient } from "../editor-client";
@@ -77,7 +98,6 @@ describe("EditorClient", () => {
       <EditorClient diagramId="test-id" defaultContent="default" />
     );
     expect(container.firstChild).toBeNull();
-    // Restore stable user for other tests
     vi.mocked(getUserIdentity).mockReturnValue(stableUser);
   });
   it("renders toolbar with title", () => {

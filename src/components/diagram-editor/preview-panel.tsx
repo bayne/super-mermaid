@@ -1,35 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { renderMermaid } from "@/lib/mermaid-renderer";
-
 interface Props {
-  content: string;
+  svg: string;
+  error: string | null;
 }
 
-export function PreviewPanel({ content }: Props) {
-  const [svg, setSvg] = useState<string>("");
-  const [error, setError] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    debounceRef.current = setTimeout(async () => {
-      const result = await renderMermaid(content);
-      if (result.error) {
-        setError(result.error);
-      } else {
-        setSvg(result.svg);
-        setError(null);
-      }
-    }, 300);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [content]);
-
+export function PreviewPanel({ svg, error }: Props) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-auto p-4">
