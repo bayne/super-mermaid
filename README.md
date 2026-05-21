@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Super Mermaid
 
-## Getting Started
+Collaborative Mermaid.js diagram editor with realtime cursor tracking, presence, and live preview.
 
-First, run the development server:
+**Stack:** Next.js 16 (App Router) + Supabase (DB + Realtime) + Vercel + CodeMirror 6 + Mermaid.js
+
+## Quick Start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+make setup                  # Install dependencies
+cp .env.local.example .env.local  # Add your Supabase credentials
+make dev                    # Start dev server at http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Local Development with Supabase
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Requires Docker for the local Supabase stack:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+make supabase-start         # Start local Supabase (Postgres, Realtime, Studio)
+make supabase-migrate       # Apply DB migrations
+make gen-types              # Regenerate TypeScript types from schema
+make dev                    # Start Next.js dev server
+```
 
-## Learn More
+Supabase Studio is available at http://localhost:54323 when running locally.
 
-To learn more about Next.js, take a look at the following resources:
+## Commands
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Run `make help` for all available commands. Key ones:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Command | Description |
+|---------|-------------|
+| `make dev` | Start Next.js dev server |
+| `make check` | Run all checks (lint, typecheck, test, build) |
+| `make test` | Run tests |
+| `make test-coverage` | Run tests with coverage report |
+| `make supabase-start` | Start local Supabase stack |
+| `make supabase-migrate` | Apply DB migrations |
+| `make gen-types` | Regenerate DB types |
+| `make vercel-deploy` | Deploy to Vercel preview |
+| `make vercel-deploy-prod` | Deploy to Vercel production |
 
-## Deploy on Vercel
+## Deployment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Vercel + Supabase Integration
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Push the repo to GitHub (`bayne/super-mermaid`)
+2. Connect the repo in the [Vercel Dashboard](https://vercel.com/new)
+3. Add the [Supabase Integration](https://vercel.com/integrations/supabase) in Vercel — this auto-populates `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+4. Apply the migration SQL from `supabase/migrations/001_initial_schema.sql` to your Supabase project
+5. Push to `main` to trigger automatic deployment
+
+### Manual Deploy
+
+```bash
+make vercel-env-pull        # Pull env vars from Vercel to .env.local
+make vercel-deploy-prod     # Deploy to production
+```
+
+## Architecture
+
+- **No auth** — rooms are accessed via tokenized URLs (nanoid)
+- **User identity** stored in browser localStorage (name, cursor color)
+- **Realtime** — Supabase Broadcast for content sync + cursor tracking, Presence for online users
+- **Persistence** — Auto-saves to Supabase Postgres with 2s debounce
+- **Analytics** — Vercel Analytics + Speed Insights (auto-active on Vercel)

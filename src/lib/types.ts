@@ -1,10 +1,5 @@
-export interface Diagram {
-  id: string;
-  title: string;
-  content: string;
-  created_at: string;
-  updated_at: string;
-}
+// DB row types are auto-generated in database.types.ts via `bun run gen:types`.
+// Types below are for Supabase Realtime broadcast payloads (not DB-backed).
 
 export interface CursorUpdate {
   userId: string;
