@@ -1,6 +1,6 @@
 import {
   BedrockRuntimeClient,
-  ConverseStreamCommand,
+  InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime";
 import type { AnthropicAuth, BedrockAuth, ClaudeAuthConfig } from "./claude-auth";
 
@@ -100,26 +100,41 @@ async function streamBedrockMessage(
     },
   });
 
-  const command = new ConverseStreamCommand({
-    modelId: auth.model,
-    system: [{ text: systemPrompt }],
+  const body = JSON.stringify({
+    anthropic_version: "bedrock-2023-05-31",
+    max_tokens: 4096,
+    system: systemPrompt,
     messages: messages.map((m) => ({
       role: m.role,
-      content: [{ text: m.content }],
+      content: m.content,
     })),
-    inferenceConfig: {
-      maxTokens: 4096,
-    },
+    stream: true,
+  });
+
+  const command = new InvokeModelWithResponseStreamCommand({
+    modelId: auth.model,
+    contentType: "application/json",
+    accept: "application/json",
+    body: new TextEncoder().encode(body),
   });
 
   const response = await client.send(command);
   let fullContent = "";
 
-  if (response.stream) {
-    for await (const event of response.stream) {
-      if (event.contentBlockDelta?.delta?.text) {
-        fullContent += event.contentBlockDelta.delta.text;
-        onDelta(event.contentBlockDelta.delta.text);
+  if (response.body) {
+    for await (const event of response.body) {
+      if (event.chunk?.bytes) {
+        const parsed = JSON.parse(new TextDecoder().decode(event.chunk.bytes));
+        if (
+          parsed.type === "content_block_delta" &&
+          parsed.delta?.type === "text_delta"
+        ) {
+          fullContent += parsed.delta.text;
+          onDelta(parsed.delta.text);
+        }
+        if (parsed.type === "error") {
+          throw new Error(parsed.error?.message || "Stream error");
+        }
       }
     }
   }
