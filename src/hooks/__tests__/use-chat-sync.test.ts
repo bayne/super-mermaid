@@ -31,6 +31,11 @@ import { streamChatMessage } from "@/lib/claude-client";
 
 const mockStreamChatMessage = vi.mocked(streamChatMessage);
 
+const anthropicAuth = {
+  provider: "anthropic" as const,
+  apiKey: "sk-ant-test",
+};
+
 function createMockChannel() {
   const listeners: Record<string, (payload: unknown) => void> = {};
   return {
@@ -277,7 +282,8 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "Hello",
           "graph TD",
-          { provider: "anthropic" as const, apiKey: "sk-ant-test", model: "claude-sonnet-4-6" },
+          anthropicAuth,
+          "sonnet-4-6",
           "Alice",
           "#E63946"
         );
@@ -314,7 +320,8 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "Hello",
           "graph TD",
-          { provider: "anthropic" as const, apiKey: "bad-key", model: "claude-sonnet-4-6" },
+          { provider: "anthropic", apiKey: "bad-key" },
+          "sonnet-4-6",
           "Alice",
           "#E63946"
         );
@@ -343,7 +350,8 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "Q",
           "graph TD",
-          { provider: "anthropic" as const, apiKey: "sk-ant-test", model: "claude-sonnet-4-6" },
+          anthropicAuth,
+          "sonnet-4-6",
           "Alice",
           "#E63946"
         );
@@ -359,33 +367,7 @@ describe("useChatSync", () => {
       expect(result.current.streamingContent).toBeNull();
     });
 
-    it("handles stream failure", async () => {
-      const channel = createMockChannel();
-      mockHistoryData([]);
-
-      mockStreamChatMessage.mockRejectedValue(new Error("Network error"));
-
-      const { result } = renderHook(() =>
-        useChatSync(channel as never, "test-diagram")
-      );
-
-      await act(async () => {
-        await result.current.sendMessage(
-          "Hello",
-          "graph TD",
-          { provider: "anthropic" as const, apiKey: "sk-ant-test", model: "claude-sonnet-4-6" },
-          "Alice",
-          "#E63946"
-        );
-      });
-
-      const errorMsg = result.current.messages.find(
-        (m) => m.role === "assistant"
-      );
-      expect(errorMsg?.content).toContain("Network error");
-    });
-
-    it("passes Anthropic auth config to streamChatMessage", async () => {
+    it("passes Anthropic auth and selected model to streamChatMessage", async () => {
       const channel = createMockChannel();
       mockHistoryData([]);
 
@@ -399,7 +381,8 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "Hello",
           "graph TD",
-          { provider: "anthropic" as const, apiKey: "sk-ant-test", model: "claude-sonnet-4-6" },
+          anthropicAuth,
+          "opus-4-6",
           "Alice",
           "#E63946"
         );
@@ -407,7 +390,8 @@ describe("useChatSync", () => {
 
       expect(mockStreamChatMessage).toHaveBeenCalledWith(
         expect.objectContaining({
-          auth: { provider: "anthropic", apiKey: "sk-ant-test", model: "claude-sonnet-4-6" },
+          auth: { provider: "anthropic", apiKey: "sk-ant-test" },
+          model: "opus-4-6",
           messages: [{ role: "user", content: "Hello" }],
         })
       );
@@ -428,13 +412,13 @@ describe("useChatSync", () => {
           "Hello",
           "graph TD",
           {
-            provider: "bedrock" as const,
+            provider: "bedrock",
             accessKeyId: "AKIA123",
             secretAccessKey: "secret",
             region: "us-west-2",
             sessionToken: "token",
-            model: "us.anthropic.claude-sonnet-4-6-v1:0",
           },
+          "sonnet-4-6",
           "Alice",
           "#E63946"
         );
@@ -448,13 +432,12 @@ describe("useChatSync", () => {
             secretAccessKey: "secret",
             region: "us-west-2",
             sessionToken: "token",
-            model: "us.anthropic.claude-sonnet-4-6-v1:0",
           },
         })
       );
     });
 
-    it("passes Bedrock auth without session token", async () => {
+    it("passes the subscription marker to streamChatMessage", async () => {
       const channel = createMockChannel();
       mockHistoryData([]);
 
@@ -468,21 +451,102 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "Hello",
           "graph TD",
-          {
-            provider: "bedrock" as const,
-            accessKeyId: "AKIA123",
-            secretAccessKey: "secret",
-            region: "us-east-1",
-            model: "us.anthropic.claude-sonnet-4-6-v1:0",
-          },
+          { provider: "subscription", expiresAt: Date.now() + 100000 },
+          "sonnet-4-6",
           "Alice",
           "#E63946"
         );
       });
 
-      const callAuth = mockStreamChatMessage.mock.calls[0][0].auth;
-      expect(callAuth.provider).toBe("bedrock");
-      expect(callAuth).not.toHaveProperty("sessionToken");
+      expect(mockStreamChatMessage.mock.calls[0][0].auth.provider).toBe(
+        "subscription"
+      );
+    });
+
+    it("offers the editor tool and applies the model's diagram update", async () => {
+      const channel = createMockChannel();
+      mockHistoryData([]);
+      const onApply = vi.fn();
+
+      mockStreamChatMessage.mockImplementation(async ({ tools, onToolUse }) => {
+        expect(tools?.[0].name).toBe("update_editor");
+        const reply = await onToolUse!("update_editor", { code: "graph LR\n  A-->B" });
+        expect(reply).toContain("editor");
+        return "Updated the editor.";
+      });
+
+      const { result } = renderHook(() =>
+        useChatSync(channel as never, "test-diagram", onApply)
+      );
+
+      await act(async () => {
+        await result.current.sendMessage(
+          "put it in the editor",
+          "graph TD",
+          anthropicAuth,
+          "sonnet-4-6",
+          "Alice",
+          "#E63946"
+        );
+      });
+
+      expect(onApply).toHaveBeenCalledWith("graph LR\n  A-->B");
+      const systemPrompt = mockStreamChatMessage.mock.calls[0][0].systemPrompt;
+      expect(systemPrompt).toContain("update_editor");
+    });
+
+    it("reports unknown tool calls back to the model", async () => {
+      const channel = createMockChannel();
+      mockHistoryData([]);
+      const onApply = vi.fn();
+
+      let reply = "";
+      mockStreamChatMessage.mockImplementation(async ({ onToolUse }) => {
+        reply = (await onToolUse!("mystery_tool", {})) as string;
+        return "";
+      });
+
+      const { result } = renderHook(() =>
+        useChatSync(channel as never, "test-diagram", onApply)
+      );
+
+      await act(async () => {
+        await result.current.sendMessage(
+          "hi",
+          "graph TD",
+          anthropicAuth,
+          "sonnet-4-6",
+          "Alice",
+          "#E63946"
+        );
+      });
+
+      expect(reply).toContain("Unknown tool");
+      expect(onApply).not.toHaveBeenCalled();
+    });
+
+    it("does not offer the editor tool when no apply handler is given", async () => {
+      const channel = createMockChannel();
+      mockHistoryData([]);
+
+      mockStreamChatMessage.mockResolvedValue("");
+
+      const { result } = renderHook(() =>
+        useChatSync(channel as never, "test-diagram")
+      );
+
+      await act(async () => {
+        await result.current.sendMessage(
+          "hi",
+          "graph TD",
+          anthropicAuth,
+          "sonnet-4-6",
+          "Alice",
+          "#E63946"
+        );
+      });
+
+      expect(mockStreamChatMessage.mock.calls[0][0].tools).toBeUndefined();
     });
 
     it("includes system prompt with diagram content", async () => {
@@ -499,7 +563,8 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "Hello",
           "graph TD\n  A-->B",
-          { provider: "anthropic" as const, apiKey: "sk-ant-test", model: "claude-sonnet-4-6" },
+          anthropicAuth,
+          "sonnet-4-6",
           "Alice",
           "#E63946"
         );

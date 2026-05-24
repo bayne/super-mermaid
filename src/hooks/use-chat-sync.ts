@@ -10,11 +10,30 @@ import type {
   ChatStreamEnd,
 } from "@/lib/types";
 import type { ClaudeAuthConfig } from "@/lib/claude-auth";
-import { streamChatMessage } from "@/lib/claude-client";
+import { streamChatMessage, type ToolDefinition } from "@/lib/claude-client";
+
+// Lets the assistant write directly into the shared editor instead of just
+// pasting code into the chat for the user to copy.
+const EDITOR_TOOL: ToolDefinition = {
+  name: "update_editor",
+  description:
+    "Replace the entire contents of the diagram editor with new Mermaid.js code. The code you provide becomes the live diagram that every collaborator immediately sees. Always pass the complete diagram, never a fragment or a diff.",
+  input_schema: {
+    type: "object",
+    properties: {
+      code: {
+        type: "string",
+        description: "The complete Mermaid.js diagram code to place in the editor.",
+      },
+    },
+    required: ["code"],
+  },
+};
 
 export function useChatSync(
   channel: RealtimeChannel | null,
-  diagramId: string
+  diagramId: string,
+  onApplyDiagram?: (code: string) => void
 ) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
@@ -103,6 +122,7 @@ export function useChatSync(
       content: string,
       diagramContent: string,
       authConfig: ClaudeAuthConfig,
+      model: string,
       userName: string,
       userColor: string
     ) => {
@@ -146,6 +166,13 @@ export function useChatSync(
       const assistantId = nanoid(12);
       let fullContent = "";
 
+      const canEdit = Boolean(onApplyDiagram);
+      const editClause = canEdit
+        ? `You can edit the diagram directly with the \`update_editor\` tool, which replaces the entire contents of the shared editor. Use it whenever the user asks you to create, change, or apply a diagram — don't just paste code into the chat and tell them to copy it. Always pass the complete Mermaid code; it becomes the live diagram everyone sees. After editing, briefly tell the user what you changed.
+
+For everything else — explaining syntax, suggesting improvements, debugging errors — answer in chat. When you're only illustrating an option the user hasn't asked you to apply, a fenced code block in the chat is fine.`
+        : `Help users with their diagrams: explain syntax, suggest improvements, debug errors, or generate new diagram code. When suggesting diagram changes, output the full updated mermaid code in a fenced code block so users can copy it.`;
+
       const systemPrompt = `You are a helpful AI assistant embedded in Super Mermaid, a collaborative Mermaid.js diagram editor. Multiple users are collaborating on the same diagram and can all see this chat.
 
 Here is the current diagram code:
@@ -154,15 +181,25 @@ Here is the current diagram code:
 ${diagramContent}
 \`\`\`
 
-Help users with their diagrams: explain syntax, suggest improvements, debug errors, or generate new diagram code. When suggesting diagram changes, output the full updated mermaid code in a fenced code block so users can copy it.
+${editClause}
 
 Keep responses concise and focused on the diagram work.`;
 
       try {
         await streamChatMessage({
           auth: authConfig,
+          model,
           systemPrompt,
           messages: allMessages,
+          tools: canEdit ? [EDITOR_TOOL] : undefined,
+          onToolUse: (name, input) => {
+            if (name === "update_editor") {
+              const code = (input as { code?: string }).code ?? "";
+              onApplyDiagram?.(code);
+              return "The editor now shows the updated diagram.";
+            }
+            return `Unknown tool: ${name}`;
+          },
           onDelta: (delta) => {
             fullContent += delta;
             setStreamingContent(fullContent);
@@ -210,7 +247,7 @@ Keep responses concise and focused on the diagram work.`;
         content: fullContent,
       });
     },
-    [channel, diagramId, messages]
+    [channel, diagramId, messages, onApplyDiagram]
   );
 
   return { messages, streamingContent, sendMessage };

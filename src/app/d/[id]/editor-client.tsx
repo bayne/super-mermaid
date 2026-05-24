@@ -6,7 +6,11 @@ import {
   updateUserIdentity,
   type UserIdentity,
 } from "@/lib/user-identity";
-import { getClaudeAuth, type ClaudeAuthConfig } from "@/lib/claude-auth";
+import {
+  getClaudeAuth,
+  getSelectedModel,
+  type ClaudeAuthConfig,
+} from "@/lib/claude-auth";
 import { EditorPanel } from "@/components/diagram-editor/editor-panel";
 import { PreviewPanel } from "@/components/diagram-editor/preview-panel";
 import { ChatPanel } from "@/components/diagram-editor/chat-panel";
@@ -74,6 +78,9 @@ function EditorInner({
   const [claudeAuth, setClaudeAuth] = useState<ClaudeAuthConfig | null>(() =>
     getClaudeAuth()
   );
+  const [selectedModel, setSelectedModel] = useState<string>(() =>
+    getSelectedModel()
+  );
   const darkMode = useDarkMode();
   const { content, updateContent, title, updateTitle } = useDiagramSync(
     channel,
@@ -85,7 +92,8 @@ function EditorInner({
   const { svg, error, errorLine } = useMermaidRender(content, darkMode);
   const { messages, streamingContent, sendMessage } = useChatSync(
     channel,
-    diagramId
+    diagramId,
+    updateContent
   );
 
   useEffect(() => {
@@ -101,9 +109,16 @@ function EditorInner({
   const handleSendChat = useCallback(
     (message: string) => {
       if (!claudeAuth) return;
-      sendMessage(message, content, claudeAuth, user.name, user.color);
+      sendMessage(
+        message,
+        content,
+        claudeAuth,
+        selectedModel,
+        user.name,
+        user.color
+      );
     },
-    [claudeAuth, content, sendMessage, user.name, user.color]
+    [claudeAuth, content, selectedModel, sendMessage, user.name, user.color]
   );
 
   const remoteCursorArray: CursorUpdate[] = Array.from(remoteCursors.values());
@@ -141,6 +156,9 @@ function EditorInner({
             onSend={handleSendChat}
             authConfig={claudeAuth}
             onAuthChange={setClaudeAuth}
+            model={selectedModel}
+            onModelChange={setSelectedModel}
+            title={title}
           />
         </div>
       </div>

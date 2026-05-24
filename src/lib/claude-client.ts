@@ -2,43 +2,207 @@ import {
   BedrockRuntimeClient,
   InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime";
-import type { AnthropicAuth, BedrockAuth, ClaudeAuthConfig } from "./claude-auth";
+import {
+  resolveModelId,
+  type AnthropicAuth,
+  type BedrockAuth,
+  type ClaudeAuthConfig,
+} from "./claude-auth";
+
+const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
+const MAX_TOKENS = 4096;
+// Safety bound on the number of tool round trips per send so a misbehaving
+// model can't loop forever.
+const MAX_TOOL_ITERATIONS = 8;
+
+/** A tool the model may call, in Anthropic Messages API format. */
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+}
+
+interface ToolUse {
+  id: string;
+  name: string;
+  input: unknown;
+}
+
+type ContentBlock =
+  | { type: "text"; text: string }
+  | { type: "tool_use"; id: string; name: string; input: unknown }
+  | { type: "tool_result"; tool_use_id: string; content: string };
+
+/** A message in the conversation; content is plain text or structured blocks. */
+export interface ApiMessage {
+  role: "user" | "assistant";
+  content: string | ContentBlock[];
+}
 
 interface StreamOptions {
   auth: ClaudeAuthConfig;
+  /** Logical model id (see MODELS in claude-auth); resolved per provider. */
+  model: string;
   systemPrompt: string;
-  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  messages: ApiMessage[];
   onDelta: (text: string) => void;
+  /** Tools to expose to the model. Omit to disable tool use. */
+  tools?: ToolDefinition[];
+  /**
+   * Runs a tool the model called and returns the result text fed back to it.
+   * Required for tools to actually do anything; without it a call is reported
+   * back as unavailable.
+   */
+  onToolUse?: (name: string, input: unknown) => Promise<string> | string;
 }
 
+interface TurnResult {
+  text: string;
+  toolUses: ToolUse[];
+  stopReason: string | null;
+}
+
+/**
+ * Sends a chat turn and runs the model's tool calls in a loop until it stops
+ * asking for tools (or hits MAX_TOOL_ITERATIONS), returning the full assistant
+ * text. Text from every turn is forwarded through onDelta as it streams.
+ */
 export async function streamChatMessage(options: StreamOptions): Promise<string> {
-  if (options.auth.provider === "anthropic") {
-    return streamAnthropicMessage(options.auth, options);
+  const messages: ApiMessage[] = [...options.messages];
+  let combinedText = "";
+
+  for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
+    if (i > 0) {
+      // Separate this turn's text from the previous turn's in the stream.
+      options.onDelta("\n\n");
+      combinedText += "\n\n";
+    }
+
+    const turn = await runTurn(options, messages);
+    combinedText += turn.text;
+
+    if (turn.stopReason !== "tool_use" || turn.toolUses.length === 0) break;
+
+    // Record the assistant's turn (any text plus the tool calls it made)...
+    const assistantContent: ContentBlock[] = [];
+    if (turn.text) assistantContent.push({ type: "text", text: turn.text });
+    for (const tu of turn.toolUses) {
+      assistantContent.push({
+        type: "tool_use",
+        id: tu.id,
+        name: tu.name,
+        input: tu.input,
+      });
+    }
+    messages.push({ role: "assistant", content: assistantContent });
+
+    // ...then run each tool and hand the results back for the next turn.
+    const results: ContentBlock[] = [];
+    for (const tu of turn.toolUses) {
+      let content: string;
+      try {
+        content = options.onToolUse
+          ? await options.onToolUse(tu.name, tu.input)
+          : `Tool "${tu.name}" is not available.`;
+      } catch (e) {
+        content = `Error: ${e instanceof Error ? e.message : "tool failed"}`;
+      }
+      results.push({ type: "tool_result", tool_use_id: tu.id, content });
+    }
+    messages.push({ role: "user", content: results });
   }
-  return streamBedrockMessage(options.auth, options);
+
+  return combinedText;
 }
 
-async function streamAnthropicMessage(
-  auth: AnthropicAuth,
-  { systemPrompt, messages, onDelta }: StreamOptions
-): Promise<string> {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": auth.apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
-    },
-    body: JSON.stringify({
-      model: auth.model,
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages,
-      stream: true,
-    }),
-  });
+function runTurn(
+  options: StreamOptions,
+  messages: ApiMessage[]
+): Promise<TurnResult> {
+  const opts = { ...options, messages };
+  switch (options.auth.provider) {
+    case "anthropic":
+      return runAnthropicTurn(options.auth, opts);
+    case "subscription":
+      return runSubscriptionTurn(opts);
+    case "bedrock":
+      return runBedrockTurn(options.auth, opts);
+  }
+}
 
+/**
+ * Accumulates a single streamed turn from Anthropic-format events (used by both
+ * the SSE and Bedrock paths): forwards text deltas, collects tool_use blocks,
+ * and tracks the stop reason.
+ */
+function createTurnAccumulator(onDelta: (text: string) => void) {
+  const blocks = new Map<
+    number,
+    { type?: string; id?: string; name?: string; json: string }
+  >();
+  let text = "";
+  let stopReason: string | null = null;
+
+  function handle(event: {
+    type?: string;
+    index?: number;
+    delta?: {
+      type?: string;
+      text?: string;
+      partial_json?: string;
+      stop_reason?: string;
+    };
+    content_block?: { type?: string; id?: string; name?: string };
+    error?: { message?: string };
+  }): void {
+    switch (event.type) {
+      case "content_block_start":
+        blocks.set(event.index!, {
+          type: event.content_block?.type,
+          id: event.content_block?.id,
+          name: event.content_block?.name,
+          json: "",
+        });
+        break;
+      case "content_block_delta":
+        if (event.delta?.type === "text_delta") {
+          text += event.delta.text;
+          onDelta(event.delta.text!);
+        } else if (event.delta?.type === "input_json_delta") {
+          const block = blocks.get(event.index!);
+          if (block) block.json += event.delta.partial_json ?? "";
+        }
+        break;
+      case "message_delta":
+        if (event.delta?.stop_reason) stopReason = event.delta.stop_reason;
+        break;
+      case "error":
+        throw new Error(event.error?.message || "Stream error");
+    }
+  }
+
+  function result(): TurnResult {
+    const toolUses: ToolUse[] = [];
+    for (const block of blocks.values()) {
+      if (block.type === "tool_use" && block.id && block.name) {
+        toolUses.push({
+          id: block.id,
+          name: block.name,
+          input: block.json ? JSON.parse(block.json) : {},
+        });
+      }
+    }
+    return { text, toolUses, stopReason };
+  }
+
+  return { handle, result };
+}
+
+/** Reads an Anthropic SSE stream, forwarding text and collecting tool calls. */
+async function consumeSseStream(
+  res: Response,
+  onDelta: (text: string) => void
+): Promise<TurnResult> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const msg =
@@ -49,8 +213,8 @@ async function streamAnthropicMessage(
 
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
+  const acc = createTurnAccumulator(onDelta);
   let buffer = "";
-  let fullContent = "";
 
   for (;;) {
     const { done, value } = await reader.read();
@@ -65,32 +229,73 @@ async function streamAnthropicMessage(
       const data = line.slice(6);
       if (data === "[DONE]") continue;
 
+      let event: unknown;
       try {
-        const event = JSON.parse(data);
-        if (
-          event.type === "content_block_delta" &&
-          event.delta?.type === "text_delta"
-        ) {
-          fullContent += event.delta.text;
-          onDelta(event.delta.text);
-        }
-        if (event.type === "error") {
-          throw new Error(event.error?.message || "Stream error");
-        }
-      } catch (e) {
-        if (e instanceof SyntaxError) continue;
-        throw e;
+        event = JSON.parse(data);
+      } catch {
+        continue;
       }
+      acc.handle(event as Parameters<typeof acc.handle>[0]);
     }
   }
 
-  return fullContent;
+  return acc.result();
 }
 
-async function streamBedrockMessage(
+async function runAnthropicTurn(
+  auth: AnthropicAuth,
+  { model, systemPrompt, messages, onDelta, tools }: StreamOptions
+): Promise<TurnResult> {
+  const res = await fetch(ANTHROPIC_MESSAGES_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": auth.apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({
+      model: resolveModelId(model, "anthropic"),
+      max_tokens: MAX_TOKENS,
+      system: systemPrompt,
+      messages,
+      ...(tools?.length ? { tools } : {}),
+      stream: true,
+    }),
+  });
+
+  return consumeSseStream(res, onDelta);
+}
+
+// Subscription chat is proxied through our own server route. The OAuth token
+// stays in an httpOnly cookie (sent automatically with this same-origin
+// request); the server attaches the bearer, applies the CLI system prefix, and
+// refreshes the token when needed.
+async function runSubscriptionTurn({
+  model,
+  systemPrompt,
+  messages,
+  onDelta,
+  tools,
+}: StreamOptions): Promise<TurnResult> {
+  const res = await fetch("/api/claude/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      system: systemPrompt,
+      messages,
+      ...(tools?.length ? { tools } : {}),
+    }),
+  });
+
+  return consumeSseStream(res, onDelta);
+}
+
+async function runBedrockTurn(
   auth: BedrockAuth,
-  { systemPrompt, messages, onDelta }: StreamOptions
-): Promise<string> {
+  { model, systemPrompt, messages, onDelta, tools }: StreamOptions
+): Promise<TurnResult> {
   const client = new BedrockRuntimeClient({
     region: auth.region,
     credentials: {
@@ -102,42 +307,31 @@ async function streamBedrockMessage(
 
   const body = JSON.stringify({
     anthropic_version: "bedrock-2023-05-31",
-    max_tokens: 4096,
+    max_tokens: MAX_TOKENS,
     system: systemPrompt,
-    messages: messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    })),
+    messages,
+    ...(tools?.length ? { tools } : {}),
     stream: true,
   });
 
   const command = new InvokeModelWithResponseStreamCommand({
-    modelId: auth.model,
+    modelId: resolveModelId(model, "bedrock"),
     contentType: "application/json",
     accept: "application/json",
     body: new TextEncoder().encode(body),
   });
 
   const response = await client.send(command);
-  let fullContent = "";
+  const acc = createTurnAccumulator(onDelta);
 
   if (response.body) {
     for await (const event of response.body) {
       if (event.chunk?.bytes) {
         const parsed = JSON.parse(new TextDecoder().decode(event.chunk.bytes));
-        if (
-          parsed.type === "content_block_delta" &&
-          parsed.delta?.type === "text_delta"
-        ) {
-          fullContent += parsed.delta.text;
-          onDelta(parsed.delta.text);
-        }
-        if (parsed.type === "error") {
-          throw new Error(parsed.error?.message || "Stream error");
-        }
+        acc.handle(parsed);
       }
     }
   }
 
-  return fullContent;
+  return acc.result();
 }

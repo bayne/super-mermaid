@@ -16,6 +16,16 @@ vi.mock("@/lib/claude-auth", () => ({
   getClaudeAuth: vi.fn(() => null),
   setClaudeAuth: vi.fn(),
   clearClaudeAuth: vi.fn(),
+  getSelectedModel: vi.fn(() => "sonnet-4-6"),
+  setSelectedModel: vi.fn(),
+  MODELS: [
+    {
+      id: "sonnet-4-6",
+      label: "Sonnet 4.6",
+      anthropic: "claude-sonnet-4-6",
+      bedrock: "us.anthropic.claude-sonnet-4-6-v1:0",
+    },
+  ],
 }));
 
 vi.mock("@/hooks/use-realtime-channel", () => ({
