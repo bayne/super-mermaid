@@ -1,7 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { EditorState, type Transaction } from "@codemirror/state";
-import type { EditorView } from "@codemirror/view";
-import { CompletionContext, type Completion } from "@codemirror/autocomplete";
+import { EditorView, keymap } from "@codemirror/view";
+import { indentWithTab } from "@codemirror/commands";
+import {
+  CompletionContext,
+  startCompletion,
+  moveCompletionSelection,
+  currentCompletions,
+  selectedCompletionIndex,
+  type Completion,
+} from "@codemirror/autocomplete";
 import {
   snippetCompletions,
   snippetCompletionExtension,
@@ -86,5 +94,89 @@ describe("snippetCompletionExtension", () => {
     const ext = snippetCompletionExtension();
     expect(Array.isArray(ext)).toBe(true);
     expect((ext as unknown[]).length).toBeGreaterThan(0);
+  });
+});
+
+// Integration tests that drive a real EditorView through the same keymap a user
+// hits, asserting on Tab's disambiguation between accepting a completion,
+// advancing a snippet field, and plain indentation.
+describe("snippetCompletionExtension key handling", () => {
+  function mountEditor(doc: string) {
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      state: EditorState.create({
+        doc,
+        selection: { anchor: doc.length },
+        extensions: [
+          // Mirror @uiw/react-codemirror's basicSetup, which binds Tab to
+          // indentWithTab at default precedence — the binding our Prec.highest
+          // keymap must beat while a snippet is active.
+          keymap.of([indentWithTab]),
+          snippetCompletionExtension(),
+        ],
+      }),
+      parent,
+    });
+    return view;
+  }
+
+  function key(view: EditorView, name: string) {
+    view.contentDOM.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: name,
+        code: name,
+        bubbles: true,
+        cancelable: true,
+      })
+    );
+  }
+
+  // Typing in jsdom doesn't fire CodeMirror's input pipeline, so replace the
+  // selection directly with the same userEvent a keystroke would carry.
+  function typeText(view: EditorView, text: string) {
+    view.dispatch(view.state.replaceSelection(text), {
+      userEvent: "input.type",
+    });
+  }
+
+  async function selectOption(view: EditorView, detail: string) {
+    startCompletion(view);
+    // Let the (synchronous) override resolve into completion state.
+    await new Promise((r) => setTimeout(r, 250));
+    const idx = currentCompletions(view.state).findIndex(
+      (o) => o.detail === detail
+    );
+    expect(idx).toBeGreaterThanOrEqual(0);
+    // ArrowDown moves from "no selection" (selectOnOpen: false) onto option 0,
+    // so reaching index N takes N+1 presses.
+    for (let i = 0; i <= idx; i++) moveCompletionSelection(true)(view);
+    expect(selectedCompletionIndex(view.state)).toBe(idx);
+  }
+
+  it("Tab does not accept until the user explicitly selects an option", async () => {
+    const view = mountEditor("se");
+    startCompletion(view);
+    await new Promise((r) => setTimeout(r, 250));
+    // Popup is open but nothing is highlighted (selectOnOpen: false), so Tab
+    // indents rather than accepting whatever happened to be first.
+    expect(selectedCompletionIndex(view.state)).toBe(null);
+    key(view, "Tab");
+    expect(view.state.doc.toString()).toBe("  se");
+    view.destroy();
+  });
+
+  it("Tab walks the inserted snippet's fields instead of indenting", async () => {
+    const view = mountEditor("no");
+    await selectOption(view, "Node [rect]");
+    key(view, "Tab"); // accept the highlighted completion
+    expect(view.state.doc.toString()).toBe("X[Label]");
+    typeText(view, "A"); // fill the first field; reopens the popup, unselected
+    await new Promise((r) => setTimeout(r, 250));
+    key(view, "Tab"); // must advance to the next field, not indent
+    typeText(view, "B");
+    key(view, "Enter");
+    expect(view.state.doc.toString()).toBe("A[B]");
+    view.destroy();
   });
 });

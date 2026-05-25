@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { mermaid } from "codemirror-lang-mermaid";
 import { oneDark } from "@codemirror/theme-one-dark";
@@ -12,6 +12,24 @@ import { snippetCompletionExtension } from "@/lib/snippet-completion";
 import type { CursorUpdate } from "@/lib/types";
 import type { ViewUpdate } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
+
+// Hoisted to a stable reference. @uiw/react-codemirror reconfigures the whole
+// editor whenever the `basicSetup` or `extensions` props change identity, and a
+// reconfigure discards CodeMirror state that was added via appendConfig — most
+// notably the active snippet field tracking. Passing a fresh object/array on
+// every render (which happens on every keystroke, since `content` is
+// controlled) therefore silently kills an in-progress snippet mid-edit, so
+// Tab stops advancing fields and falls back to indentation.
+const BASIC_SETUP = {
+  lineNumbers: true,
+  foldGutter: true,
+  bracketMatching: true,
+  closeBrackets: true,
+  // We supply our own snippet-backed autocompletion (see
+  // snippetCompletionExtension); disable the default to avoid two competing
+  // completion configs.
+  autocompletion: false,
+} as const;
 
 interface Props {
   content: string;
@@ -75,12 +93,18 @@ export function EditorPanel({
     view.focus();
   }, []);
 
-  // Vim must come first so its keymap takes precedence over the basic setup.
-  const extensions: Extension[] = [];
-  if (vimMode) extensions.push(vim());
-  extensions.push(mermaid(), remoteCursorField, errorLineField);
-  if (autocomplete) extensions.push(snippetCompletionExtension());
-  if (darkMode) extensions.push(oneDark);
+  // Memoized so the array keeps a stable identity across keystroke re-renders;
+  // see BASIC_SETUP above. Only genuine config changes (mode toggles, theme)
+  // rebuild it and reconfigure the editor.
+  const extensions = useMemo<Extension[]>(() => {
+    const exts: Extension[] = [];
+    // Vim must come first so its keymap takes precedence over the basic setup.
+    if (vimMode) exts.push(vim());
+    exts.push(mermaid(), remoteCursorField, errorLineField);
+    if (autocomplete) exts.push(snippetCompletionExtension());
+    if (darkMode) exts.push(oneDark);
+    return exts;
+  }, [vimMode, autocomplete, darkMode]);
 
   return (
     <div className="flex h-full flex-col">
@@ -94,16 +118,7 @@ export function EditorPanel({
           theme={darkMode ? "dark" : "light"}
           height="100%"
           className="h-full"
-          basicSetup={{
-            lineNumbers: true,
-            foldGutter: true,
-            bracketMatching: true,
-            closeBrackets: true,
-            // We supply our own snippet-backed autocompletion (see
-            // snippetCompletionExtension); disable the default to avoid two
-            // competing completion configs.
-            autocompletion: false,
-          }}
+          basicSetup={BASIC_SETUP}
         />
       </div>
       <SnippetLibrary

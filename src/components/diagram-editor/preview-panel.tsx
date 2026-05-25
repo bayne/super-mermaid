@@ -23,8 +23,8 @@ export function PreviewPanel({ svg, error }: Props) {
         )}
       </div>
       {error && (
-        <div className="border-t border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
-          {error}
+        <div className="overflow-x-auto border-t border-red-200 bg-red-50 p-3 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
+          <pre className="whitespace-pre font-mono text-sm">{error}</pre>
         </div>
       )}
     </div>

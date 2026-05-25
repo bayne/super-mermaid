@@ -1,6 +1,7 @@
 import {
   autocompletion,
   acceptCompletion,
+  closeCompletion,
   snippet,
   snippetKeymap,
   nextSnippetField,
@@ -10,7 +11,7 @@ import {
   type CompletionContext,
   type CompletionResult,
 } from "@codemirror/autocomplete";
-import { keymap } from "@codemirror/view";
+import { keymap, type Command } from "@codemirror/view";
 import { Prec, type Extension } from "@codemirror/state";
 import {
   MERMAID_SNIPPETS,
@@ -63,7 +64,11 @@ export function snippetCompletions(
       type: "snippet",
       // `snippet()` inserts the template and turns its `${field}` markers into
       // editable fields the user tabs through (see snippetCompletionExtension).
-      apply: snippet(snippetDef.insert),
+      // The trailing `${}` is a zero-width exit field placed after the whole
+      // template, so the final Tab/Enter lands the cursor cleanly past the
+      // snippet (e.g. after the closing `]`) instead of advancing nowhere and
+      // letting Enter split the text it just inserted.
+      apply: snippet(snippetDef.insert + "${}"),
       boost: scoreSnippet(snippetDef, diagramType, contextWords),
     });
   }
@@ -73,37 +78,55 @@ export function snippetCompletions(
   return { from: word.from, options, filter: false };
 }
 
+// Runs commands in order, stopping at the first that handles the key (returns
+// true). Lets one binding express a clear priority — e.g. "accept a selected
+// completion, otherwise advance the snippet field" — instead of relying on the
+// fragile relative ordering of several same-precedence keymaps.
+function firstThatHandles(...commands: Command[]): Command {
+  return (view) => commands.some((cmd) => cmd(view));
+}
+
 /**
  * CodeMirror extension that completes Mermaid snippets as the user types,
- * accepts the highlighted suggestion with Tab, and then lets the user tab
+ * accepts the highlighted suggestion with Tab/Enter, and lets the user tab
  * through the inserted snippet's `${field}` placeholders.
  */
 export function snippetCompletionExtension(): Extension {
   return [
     // selectOnOpen: false means the popup opens with *no* option highlighted,
-    // so Tab/Enter stay unambiguous (indent / newline) while the user is still
-    // typing. acceptCompletion is a no-op until there's a selection, which the
-    // user makes explicitly with ArrowUp/ArrowDown — only then do Tab/Enter
-    // accept the highlighted snippet.
+    // so Tab/Enter stay unambiguous while the user is still typing. The user
+    // commits to a suggestion explicitly with ArrowUp/ArrowDown — only then
+    // does acceptCompletion have a selection to accept.
     autocompletion({
       override: [snippetCompletions],
       icons: false,
       selectOnOpen: false,
     }),
-    // Tab accepts the active completion (once one is selected); falls through to
-    // default Tab handling (indentation, then snippet-field navigation below)
-    // when nothing is selected or the popup is closed. Prec.highest so it beats
-    // the indent-with-tab binding from basicSetup.
-    Prec.highest(keymap.of([{ key: "Tab", run: acceptCompletion }])),
-    // While a snippet's fields are active, Tab/Enter advance to the next field
-    // and Shift-Tab goes back; Escape abandons the remaining fields. These
-    // commands return false when no snippet is active, so they fall through to
-    // normal Enter/Tab handling. (CodeMirror's default snippet keymap binds
-    // only Tab/Shift-Tab/Escape — we add Enter to match.)
-    snippetKeymap.of([
-      { key: "Tab", run: nextSnippetField, shift: prevSnippetField },
-      { key: "Enter", run: nextSnippetField },
-      { key: "Escape", run: clearSnippet },
-    ]),
+    // Silence CodeMirror's built-in snippet keymap (it's installed at
+    // Prec.highest the first time a snippet is inserted) so the bindings below
+    // are the single source of truth for Tab/Enter/Escape while a snippet is
+    // active — otherwise two highest-precedence Tab handlers race.
+    snippetKeymap.of([]),
+    // One Prec.highest keymap with explicit priority. For Tab/Enter:
+    //   1. acceptCompletion — accepts the popup option, but only when one is
+    //      explicitly selected (no-op otherwise, thanks to selectOnOpen:false).
+    //   2. nextSnippetField — advances to the next `${field}` of an active
+    //      snippet.
+    // Both return false when they don't apply, so a bare Tab/Enter (no popup
+    // selection, no active snippet) falls through to normal indentation /
+    // newline. Prec.highest so this beats basicSetup's indent-with-tab binding.
+    // Shift-Tab steps back a field; Escape closes the popup if open, else
+    // abandons the snippet's remaining fields.
+    Prec.highest(
+      keymap.of([
+        {
+          key: "Tab",
+          run: firstThatHandles(acceptCompletion, nextSnippetField),
+          shift: prevSnippetField,
+        },
+        { key: "Enter", run: firstThatHandles(acceptCompletion, nextSnippetField) },
+        { key: "Escape", run: firstThatHandles(closeCompletion, clearSnippet) },
+      ])
+    ),
   ];
 }

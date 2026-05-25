@@ -24,7 +24,8 @@
 ## Editor settings (per-browser)
 
 - `src/lib/editor-settings.ts` stores `{ vimMode, autocomplete }` under `super-mermaid-editor-settings` (localStorage, not shared between collaborators). State lives in `editor-client.tsx` and flows to `EditorPanel` as props.
-- Vim mode adds `@replit/codemirror-vim`'s `vim()` extension, which **must be first** in the extensions array to take keymap precedence. Autocomplete adds `snippetCompletionExtension()` (`src/lib/snippet-completion.ts`), which feeds the existing `MERMAID_SNIPPETS` into `@codemirror/autocomplete` and binds **Tab** (via `Prec.highest`) to accept. `basicSetup.autocompletion` is disabled so there's only one completion config.
+- Vim mode adds `@replit/codemirror-vim`'s `vim()` extension, which **must be first** in the extensions array to take keymap precedence. Autocomplete adds `snippetCompletionExtension()` (`src/lib/snippet-completion.ts`), which feeds the existing `MERMAID_SNIPPETS` into `@codemirror/autocomplete` and binds **Tab** (via `Prec.highest`) to accept a *selected* completion or otherwise advance the inserted snippet's `${field}`s. `basicSetup.autocompletion` is disabled so there's only one completion config.
+- Footgun: the `extensions` array and `basicSetup` object passed to `<CodeMirror>` in `EditorPanel` **must keep a stable identity across renders** (memoized / hoisted constant). `@uiw/react-codemirror` reconfigures the whole editor whenever either prop changes identity, and a reconfigure silently discards state added via `appendConfig` — including the active snippet field tracking. Since `content` is controlled, a fresh array/object would reconfigure on every keystroke and break Tab snippet-field navigation mid-edit.
 
 ## Supabase
 

@@ -11,6 +11,13 @@ Object.defineProperty(window.navigator, "clipboard", {
 // Expose for tests to assert against
 (globalThis as Record<string, unknown>).__clipboardWriteText = clipboardWriteText;
 
+// jsdom has no layout engine, so Range measurement returns nothing. CodeMirror's
+// autocomplete tooltip measures a Range when it opens; stub these so completion
+// integration tests can open the popup without throwing.
+Range.prototype.getClientRects = () =>
+  ({ length: 0, item: () => null } as unknown as DOMRectList);
+Range.prototype.getBoundingClientRect = () => new DOMRect();
+
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({
