@@ -80,11 +80,20 @@ export function snippetCompletions(
  */
 export function snippetCompletionExtension(): Extension {
   return [
-    autocompletion({ override: [snippetCompletions], icons: false }),
-    // Tab accepts the active completion; falls through to default Tab handling
-    // (indentation, then snippet-field navigation below) when the autocomplete
-    // popup is closed. Prec.highest so it beats the indent-with-tab binding
-    // from basicSetup.
+    // selectOnOpen: false means the popup opens with *no* option highlighted,
+    // so Tab/Enter stay unambiguous (indent / newline) while the user is still
+    // typing. acceptCompletion is a no-op until there's a selection, which the
+    // user makes explicitly with ArrowUp/ArrowDown — only then do Tab/Enter
+    // accept the highlighted snippet.
+    autocompletion({
+      override: [snippetCompletions],
+      icons: false,
+      selectOnOpen: false,
+    }),
+    // Tab accepts the active completion (once one is selected); falls through to
+    // default Tab handling (indentation, then snippet-field navigation below)
+    // when nothing is selected or the popup is closed. Prec.highest so it beats
+    // the indent-with-tab binding from basicSetup.
     Prec.highest(keymap.of([{ key: "Tab", run: acceptCompletion }])),
     // While a snippet's fields are active, Tab/Enter advance to the next field
     // and Shift-Tab goes back; Escape abandons the remaining fields. These
