@@ -1,6 +1,11 @@
 import {
   autocompletion,
   acceptCompletion,
+  snippet,
+  snippetKeymap,
+  nextSnippetField,
+  prevSnippetField,
+  clearSnippet,
   type Completion,
   type CompletionContext,
   type CompletionResult,
@@ -45,19 +50,21 @@ export function snippetCompletions(
   const contextWords = getContextWords(doc, cursorLine);
 
   const options: Completion[] = [];
-  for (const snippet of MERMAID_SNIPPETS) {
-    const triggers = triggersFor(snippet);
+  for (const snippetDef of MERMAID_SNIPPETS) {
+    const triggers = triggersFor(snippetDef);
     const match =
       triggers.find((t) => t.startsWith(typed)) ??
       (context.explicit ? triggers.find((t) => t.includes(typed)) : undefined);
     if (!match && !context.explicit) continue;
 
     options.push({
-      label: match ?? snippet.label,
-      detail: snippet.label,
+      label: match ?? snippetDef.label,
+      detail: snippetDef.label,
       type: "snippet",
-      apply: snippet.insert,
-      boost: scoreSnippet(snippet, diagramType, contextWords),
+      // `snippet()` inserts the template and turns its `${field}` markers into
+      // editable fields the user tabs through (see snippetCompletionExtension).
+      apply: snippet(snippetDef.insert),
+      boost: scoreSnippet(snippetDef, diagramType, contextWords),
     });
   }
 
@@ -67,15 +74,27 @@ export function snippetCompletions(
 }
 
 /**
- * CodeMirror extension that completes Mermaid snippets as the user types and
- * accepts the highlighted suggestion with Tab.
+ * CodeMirror extension that completes Mermaid snippets as the user types,
+ * accepts the highlighted suggestion with Tab, and then lets the user tab
+ * through the inserted snippet's `${field}` placeholders.
  */
 export function snippetCompletionExtension(): Extension {
   return [
     autocompletion({ override: [snippetCompletions], icons: false }),
     // Tab accepts the active completion; falls through to default Tab handling
-    // (indentation) when the autocomplete popup is closed. Prec.highest so it
-    // beats the indent-with-tab binding from basicSetup.
+    // (indentation, then snippet-field navigation below) when the autocomplete
+    // popup is closed. Prec.highest so it beats the indent-with-tab binding
+    // from basicSetup.
     Prec.highest(keymap.of([{ key: "Tab", run: acceptCompletion }])),
+    // While a snippet's fields are active, Tab/Enter advance to the next field
+    // and Shift-Tab goes back; Escape abandons the remaining fields. These
+    // commands return false when no snippet is active, so they fall through to
+    // normal Enter/Tab handling. (CodeMirror's default snippet keymap binds
+    // only Tab/Shift-Tab/Escape — we add Enter to match.)
+    snippetKeymap.of([
+      { key: "Tab", run: nextSnippetField, shift: prevSnippetField },
+      { key: "Enter", run: nextSnippetField },
+      { key: "Escape", run: clearSnippet },
+    ]),
   ];
 }

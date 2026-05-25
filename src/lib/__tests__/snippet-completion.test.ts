@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { EditorState } from "@codemirror/state";
-import { CompletionContext } from "@codemirror/autocomplete";
+import { EditorState, type Transaction } from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
+import { CompletionContext, type Completion } from "@codemirror/autocomplete";
 import {
   snippetCompletions,
   snippetCompletionExtension,
@@ -9,6 +10,27 @@ import {
 function contextFor(doc: string, pos = doc.length, explicit = false) {
   const state = EditorState.create({ doc });
   return new CompletionContext(state, pos, explicit);
+}
+
+// Applies a completion's `apply` function (a snippet inserter) to an empty
+// document and returns the resulting text, so tests can assert on what gets
+// inserted regardless of the `${field}` placeholder markers in the template.
+function applyToText(completion: Completion): string {
+  const apply = completion.apply;
+  if (typeof apply !== "function") {
+    throw new Error("expected a snippet apply function");
+  }
+  let result = "";
+  // `snippet()`'s applier only touches `state` and `dispatch`, so a minimal
+  // stub stands in for a real EditorView here.
+  const view = {
+    state: EditorState.create({ doc: "" }),
+    dispatch: (tr: Transaction) => {
+      result = tr.newDoc.toString();
+    },
+  } as unknown as EditorView;
+  apply(view, completion, 0, 0);
+  return result;
 }
 
 describe("snippetCompletions", () => {
@@ -28,7 +50,13 @@ describe("snippetCompletions", () => {
   it("applies the full snippet body, not the typed trigger", () => {
     const result = snippetCompletions(contextFor("loop", 4, false));
     const loop = result!.options.find((o) => o.detail === "Loop");
-    expect(loop?.apply).toContain("loop Every minute");
+    expect(applyToText(loop!)).toContain("loop Every minute");
+  });
+
+  it("inserts placeholder field defaults without the snippet markers", () => {
+    const result = snippetCompletions(contextFor("nod", 3, false));
+    const rect = result!.options.find((o) => o.detail === "Node [rect]");
+    expect(applyToText(rect!)).toBe("X[Label]");
   });
 
   it("matches substrings only when completion is explicit", () => {

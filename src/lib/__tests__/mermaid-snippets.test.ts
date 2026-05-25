@@ -4,6 +4,7 @@ import {
   detectDiagramType,
   scoreSnippet,
   getContextWords,
+  plainSnippet,
 } from "../mermaid-snippets";
 
 describe("detectDiagramType", () => {
@@ -120,6 +121,29 @@ describe("MERMAID_SNIPPETS", () => {
       expect(s.insert).toBeTruthy();
       expect(s.diagramType).toBeTruthy();
       expect(s.keywords.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("plainSnippet", () => {
+  it("strips field markers, keeping the default text", () => {
+    expect(plainSnippet("${X}[${Label}]")).toBe("X[Label]");
+    expect(plainSnippet("${A} --> ${B}")).toBe("A --> B");
+    expect(plainSnippet("${X}{${Label}}")).toBe("X{Label}");
+  });
+
+  it("leaves literal braces and color hashes alone", () => {
+    expect(plainSnippet("style ${X} fill:#f9f,stroke:#333")).toBe(
+      "style X fill:#f9f,stroke:#333"
+    );
+    expect(plainSnippet('${A} ||--o{ ${B} : "${has}"')).toBe(
+      'A ||--o{ B : "has"'
+    );
+  });
+
+  it("produces marker-free text for every snippet", () => {
+    for (const s of MERMAID_SNIPPETS) {
+      expect(plainSnippet(s.insert)).not.toMatch(/[#$]\{/);
     }
   });
 });
