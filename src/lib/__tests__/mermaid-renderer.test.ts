@@ -91,6 +91,15 @@ describe("renderMermaid", () => {
       expect.objectContaining({ theme: "dark" })
     );
   });
+
+  it("suppresses mermaid's built-in error diagram rendering", async () => {
+    mockRender.mockResolvedValue({ svg: "<svg/>" } as never);
+
+    await renderMermaid("graph TD\n  A --> B");
+    expect(mermaid.initialize).toHaveBeenCalledWith(
+      expect.objectContaining({ suppressErrorRendering: true })
+    );
+  });
 });
 
 describe("parseErrorLine", () => {
