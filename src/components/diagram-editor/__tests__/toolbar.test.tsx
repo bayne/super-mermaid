@@ -18,6 +18,8 @@ const defaultProps = {
   diagramId: "test-id",
   user: { userId: "u1", name: "Alice", color: "#E63946" },
   onUserChange: vi.fn(),
+  editorSettings: { vimMode: false, autocomplete: true },
+  onEditorSettingsChange: vi.fn(),
 };
 
 describe("Toolbar", () => {
@@ -80,26 +82,34 @@ describe("Toolbar", () => {
     render(<Toolbar {...defaultProps} />);
 
     await user.click(screen.getByText("Alice"));
-    expect(screen.getByText("User Settings")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Settings" })
+    ).toBeInTheDocument();
   });
 
-  it("closes settings dialog on cancel", async () => {
+  it("closes settings dialog with the close button", async () => {
     const user = userEvent.setup();
     render(<Toolbar {...defaultProps} />);
 
     await user.click(screen.getByText("Alice"));
-    expect(screen.getByText("User Settings")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Settings" })
+    ).toBeInTheDocument();
 
-    await user.click(screen.getByText("Cancel"));
-    expect(screen.queryByText("User Settings")).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText("Close settings"));
+    expect(
+      screen.queryByRole("heading", { name: "Settings" })
+    ).not.toBeInTheDocument();
   });
 
-  it("calls onUserChange after settings save", async () => {
+  it("calls onUserChange when a cursor color is picked", async () => {
     const user = userEvent.setup();
     render(<Toolbar {...defaultProps} />);
 
     await user.click(screen.getByText("Alice"));
-    await user.click(screen.getByText("Save"));
+    // Pick any color swatch other than the current one.
+    const swatches = screen.getAllByLabelText(/^Cursor color /);
+    await user.click(swatches[swatches.length - 1]);
 
     expect(defaultProps.onUserChange).toHaveBeenCalled();
   });

@@ -11,6 +11,11 @@ import {
   getSelectedModel,
   type ClaudeAuthConfig,
 } from "@/lib/claude-auth";
+import {
+  getEditorSettings,
+  updateEditorSettings,
+  type EditorSettings,
+} from "@/lib/editor-settings";
 import { EditorPanel } from "@/components/diagram-editor/editor-panel";
 import { PreviewPanel } from "@/components/diagram-editor/preview-panel";
 import { ChatPanel } from "@/components/diagram-editor/chat-panel";
@@ -81,7 +86,17 @@ function EditorInner({
   const [selectedModel, setSelectedModel] = useState<string>(() =>
     getSelectedModel()
   );
+  const [editorSettings, setEditorSettings] = useState<EditorSettings>(() =>
+    getEditorSettings()
+  );
   const darkMode = useDarkMode();
+
+  const handleEditorSettingsChange = useCallback(
+    (updates: Partial<EditorSettings>) => {
+      setEditorSettings(updateEditorSettings(updates));
+    },
+    []
+  );
   const { content, updateContent, title, updateTitle } = useDiagramSync(
     channel,
     diagramId,
@@ -131,6 +146,8 @@ function EditorInner({
         diagramId={diagramId}
         user={user}
         onUserChange={onUserChange}
+        editorSettings={editorSettings}
+        onEditorSettingsChange={handleEditorSettingsChange}
       />
       <PresenceBar users={onlineUsers} currentUserId={user.userId} />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col md:grid md:grid-rows-2">
@@ -143,6 +160,8 @@ function EditorInner({
               onCursorChange={broadcastCursor}
               darkMode={darkMode}
               errorLine={errorLine}
+              vimMode={editorSettings.vimMode}
+              autocomplete={editorSettings.autocomplete}
             />
           </div>
           <div className="min-h-0 min-w-0 flex-1 md:w-1/2 md:flex-none">

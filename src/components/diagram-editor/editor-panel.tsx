@@ -4,9 +4,11 @@ import { useRef, useEffect, useCallback, useState } from "react";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { mermaid } from "codemirror-lang-mermaid";
 import { oneDark } from "@codemirror/theme-one-dark";
+import { vim } from "@replit/codemirror-vim";
 import { remoteCursorField, setRemoteCursors } from "./remote-cursors";
 import { errorLineField, setErrorLine } from "./error-line-highlight";
 import { SnippetLibrary } from "./snippet-library";
+import { snippetCompletionExtension } from "@/lib/snippet-completion";
 import type { CursorUpdate } from "@/lib/types";
 import type { ViewUpdate } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
@@ -18,6 +20,8 @@ interface Props {
   onCursorChange: (selection: { head: number; anchor: number }) => void;
   darkMode: boolean;
   errorLine: number | null;
+  vimMode: boolean;
+  autocomplete: boolean;
 }
 
 export function EditorPanel({
@@ -27,6 +31,8 @@ export function EditorPanel({
   onCursorChange,
   darkMode,
   errorLine,
+  vimMode,
+  autocomplete,
 }: Props) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const [cursorLine, setCursorLine] = useState(1);
@@ -69,7 +75,11 @@ export function EditorPanel({
     view.focus();
   }, []);
 
-  const extensions: Extension[] = [mermaid(), remoteCursorField, errorLineField];
+  // Vim must come first so its keymap takes precedence over the basic setup.
+  const extensions: Extension[] = [];
+  if (vimMode) extensions.push(vim());
+  extensions.push(mermaid(), remoteCursorField, errorLineField);
+  if (autocomplete) extensions.push(snippetCompletionExtension());
   if (darkMode) extensions.push(oneDark);
 
   return (
@@ -89,6 +99,10 @@ export function EditorPanel({
             foldGutter: true,
             bracketMatching: true,
             closeBrackets: true,
+            // We supply our own snippet-backed autocompletion (see
+            // snippetCompletionExtension); disable the default to avoid two
+            // competing completion configs.
+            autocompletion: false,
           }}
         />
       </div>

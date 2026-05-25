@@ -5,7 +5,8 @@ import {
   updateUserIdentity,
   type UserIdentity,
 } from "@/lib/user-identity";
-import { UserSettingsDialog } from "./user-settings-dialog";
+import type { EditorSettings } from "@/lib/editor-settings";
+import { SettingsDialog } from "./settings-dialog";
 
 interface Props {
   title: string;
@@ -13,6 +14,8 @@ interface Props {
   diagramId: string;
   user: UserIdentity;
   onUserChange: (user: UserIdentity) => void;
+  editorSettings: EditorSettings;
+  onEditorSettingsChange: (updates: Partial<EditorSettings>) => void;
 }
 
 export function Toolbar({
@@ -21,6 +24,8 @@ export function Toolbar({
   diagramId,
   user,
   onUserChange,
+  editorSettings,
+  onEditorSettingsChange,
 }: Props) {
   const [showSettings, setShowSettings] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -32,10 +37,9 @@ export function Toolbar({
     setTimeout(() => setCopied(false), 2000);
   }
 
-  function handleSettingsSave(name: string, color: string) {
+  function handleProfileChange(name: string, color: string) {
     const updated = updateUserIdentity({ name, color });
     onUserChange(updated);
-    setShowSettings(false);
   }
 
   return (
@@ -69,10 +73,12 @@ export function Toolbar({
       </div>
 
       {showSettings && (
-        <UserSettingsDialog
+        <SettingsDialog
           name={user.name}
           color={user.color}
-          onSave={handleSettingsSave}
+          editorSettings={editorSettings}
+          onProfileChange={handleProfileChange}
+          onEditorSettingsChange={onEditorSettingsChange}
           onClose={() => setShowSettings(false)}
         />
       )}

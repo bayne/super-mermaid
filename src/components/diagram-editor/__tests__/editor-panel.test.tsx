@@ -68,6 +68,14 @@ vi.mock("../snippet-library", () => ({
   SnippetLibrary: () => <div data-testid="snippet-library" />,
 }));
 
+vi.mock("@replit/codemirror-vim", () => ({
+  vim: vi.fn(() => []),
+}));
+
+vi.mock("@/lib/snippet-completion", () => ({
+  snippetCompletionExtension: vi.fn(() => []),
+}));
+
 import { EditorPanel } from "../editor-panel";
 
 describe("EditorPanel", () => {
@@ -78,6 +86,8 @@ describe("EditorPanel", () => {
     onCursorChange: vi.fn(),
     darkMode: false,
     errorLine: null,
+    vimMode: false,
+    autocomplete: true,
   };
 
   it("renders with content", () => {

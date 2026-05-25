@@ -21,6 +21,11 @@
   - Footgun: the Messages API only honors a subscription bearer when the system prompt's first block is exactly `CLI_SYSTEM_PREFIX` (in `src/app/api/claude/messages/route.ts`) — changing that string silently breaks subscription auth.
   - Footgun: tokens are stored base64-JSON in one cookie; a very large token pair could exceed the ~4KB cookie limit and be silently dropped by the browser.
 
+## Editor settings (per-browser)
+
+- `src/lib/editor-settings.ts` stores `{ vimMode, autocomplete }` under `super-mermaid-editor-settings` (localStorage, not shared between collaborators). State lives in `editor-client.tsx` and flows to `EditorPanel` as props.
+- Vim mode adds `@replit/codemirror-vim`'s `vim()` extension, which **must be first** in the extensions array to take keymap precedence. Autocomplete adds `snippetCompletionExtension()` (`src/lib/snippet-completion.ts`), which feeds the existing `MERMAID_SNIPPETS` into `@codemirror/autocomplete` and binds **Tab** (via `Prec.highest`) to accept. `basicSetup.autocompletion` is disabled so there's only one completion config.
+
 ## Supabase
 
 - No auth — rooms are accessed via tokenized URLs
