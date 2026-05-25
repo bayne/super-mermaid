@@ -35,14 +35,14 @@ export function SnippetLibrary({ content, cursorLine, onInsert }: Props) {
         {sortedSnippets.map((snippet) => {
           const text = plainSnippet(snippet.insert);
           return (
-          <button
-            key={snippet.label}
-            onClick={() => onInsert(text)}
-            className="shrink-0 rounded border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-600 dark:hover:bg-blue-950 dark:hover:text-blue-300"
-            title={text}
-          >
-            {snippet.label}
-          </button>
+            <button
+              key={snippet.label}
+              onClick={() => onInsert(text)}
+              className="shrink-0 rounded border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-600 dark:hover:bg-blue-950 dark:hover:text-blue-300"
+              title={text}
+            >
+              {snippet.label}
+            </button>
           );
         })}
       </div>
