@@ -7,6 +7,12 @@ function ensureInitialized(theme: "default" | "dark") {
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: "loose",
+    // Without this, a parse error makes mermaid draw its "bomb" error
+    // diagram into a temp <div> appended to document.body and then throw
+    // before cleaning it up, leaving the bomb orphaned at the bottom of the
+    // page. Suppressing it removes the temp element and just throws, so we
+    // surface the error via line highlighting instead.
+    suppressErrorRendering: true,
     theme,
   });
   currentTheme = theme;
