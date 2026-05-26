@@ -22,9 +22,10 @@ interface MessagesBody {
 }
 
 /**
- * Server-side proxy for the subscription provider: the OAuth token stays in the
+ * Server-side proxy for the Claude subscription: the OAuth token stays in the
  * httpOnly cookie, gets refreshed here when near expiry, and the upstream SSE
- * stream is piped straight back to the browser.
+ * stream is piped straight back to the browser. No secret ever reaches the
+ * client.
  */
 export async function POST(req: Request): Promise<Response> {
   let tokens = readTokensFromRequest(req);
@@ -45,7 +46,10 @@ export async function POST(req: Request): Promise<Response> {
       tokens = await refreshTokens(tokens.refreshToken);
       refreshedCookie = buildSessionCookie(tokens);
     } catch (e) {
-      return jsonError(e instanceof Error ? e.message : "Token refresh failed", 401);
+      return jsonError(
+        e instanceof Error ? e.message : "Token refresh failed",
+        401
+      );
     }
   }
 
@@ -59,7 +63,7 @@ export async function POST(req: Request): Promise<Response> {
       "anthropic-beta": "oauth-2025-04-20",
     },
     body: JSON.stringify({
-      model: resolveModelId(body.model, "subscription"),
+      model: resolveModelId(body.model),
       max_tokens: MAX_TOKENS,
       system: [
         { type: "text", text: CLI_SYSTEM_PREFIX },

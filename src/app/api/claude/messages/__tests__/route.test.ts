@@ -32,7 +32,7 @@ function messagesRequest(cookie: string | null, extra: object = {}) {
   });
 }
 
-function cookieValue(tokens: {
+function subCookie(tokens: {
   accessToken: string;
   refreshToken: string;
   expiresAt: number;
@@ -55,9 +55,24 @@ describe("POST /api/claude/messages", () => {
     expect((await res.json()).error.message).toContain("Not signed in");
   });
 
+  it("returns 400 for an invalid request body", async () => {
+    const cookie = subCookie({
+      accessToken: "tok",
+      refreshToken: "ref",
+      expiresAt: Date.now() + 600_000,
+    });
+    const req = new Request("http://localhost/api/claude/messages", {
+      method: "POST",
+      headers: { cookie },
+      body: "not json",
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+  });
+
   it("proxies to Anthropic with a bearer token and CLI system prefix", async () => {
     fetchMock.mockResolvedValue(streamResponse());
-    const cookie = cookieValue({
+    const cookie = subCookie({
       accessToken: "tok",
       refreshToken: "ref",
       expiresAt: Date.now() + 600_000,
@@ -82,7 +97,7 @@ describe("POST /api/claude/messages", () => {
 
   it("forwards tools to Anthropic when provided", async () => {
     fetchMock.mockResolvedValue(streamResponse());
-    const cookie = cookieValue({
+    const cookie = subCookie({
       accessToken: "tok",
       refreshToken: "ref",
       expiresAt: Date.now() + 600_000,
@@ -111,7 +126,7 @@ describe("POST /api/claude/messages", () => {
       return Promise.resolve(streamResponse());
     });
 
-    const cookie = cookieValue({
+    const cookie = subCookie({
       accessToken: "old",
       refreshToken: "ref",
       expiresAt: Date.now() + 1000,
@@ -132,7 +147,7 @@ describe("POST /api/claude/messages", () => {
       json: async () => ({}),
     } as unknown as Response);
 
-    const cookie = cookieValue({
+    const cookie = subCookie({
       accessToken: "old",
       refreshToken: "ref",
       expiresAt: Date.now() + 1000,

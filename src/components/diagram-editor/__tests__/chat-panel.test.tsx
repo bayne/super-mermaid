@@ -32,18 +32,6 @@ import {
   clearSubscriptionSession,
 } from "@/lib/claude-oauth";
 
-const anthropicAuth = {
-  provider: "anthropic" as const,
-  apiKey: "sk-ant-test",
-};
-
-const bedrockAuth = {
-  provider: "bedrock" as const,
-  accessKeyId: "AKIA",
-  secretAccessKey: "secret",
-  region: "us-east-1",
-};
-
 const subscriptionAuth = {
   provider: "subscription" as const,
   expiresAt: 1,
@@ -75,21 +63,11 @@ describe("ChatPanel", () => {
   });
 
   it("shows disconnect button when connected", () => {
-    render(<ChatPanel {...defaultProps} authConfig={anthropicAuth} />);
+    render(<ChatPanel {...defaultProps} authConfig={subscriptionAuth} />);
     expect(screen.getByText("Disconnect")).toBeInTheDocument();
   });
 
-  it("shows provider label when connected via Anthropic", () => {
-    render(<ChatPanel {...defaultProps} authConfig={anthropicAuth} />);
-    expect(screen.getByText("via Anthropic")).toBeInTheDocument();
-  });
-
-  it("shows provider label when connected via Bedrock", () => {
-    render(<ChatPanel {...defaultProps} authConfig={bedrockAuth} />);
-    expect(screen.getByText("via AWS Bedrock")).toBeInTheDocument();
-  });
-
-  it("shows provider label when connected via subscription", () => {
+  it("shows the subscription provider label when connected", () => {
     render(<ChatPanel {...defaultProps} authConfig={subscriptionAuth} />);
     expect(screen.getByText("via Claude subscription")).toBeInTheDocument();
   });
@@ -102,7 +80,7 @@ describe("ChatPanel", () => {
   });
 
   it("shows placeholder for authenticated users with no messages", () => {
-    render(<ChatPanel {...defaultProps} authConfig={anthropicAuth} />);
+    render(<ChatPanel {...defaultProps} authConfig={subscriptionAuth} />);
     expect(
       screen.getByText("Ask Claude about your diagram")
     ).toBeInTheDocument();
@@ -120,7 +98,7 @@ describe("ChatPanel", () => {
     render(
       <ChatPanel
         {...defaultProps}
-        authConfig={anthropicAuth}
+        authConfig={subscriptionAuth}
         messages={[
           {
             id: "1",
@@ -140,7 +118,7 @@ describe("ChatPanel", () => {
     render(
       <ChatPanel
         {...defaultProps}
-        authConfig={anthropicAuth}
+        authConfig={subscriptionAuth}
         messages={[
           {
             id: "1",
@@ -160,7 +138,7 @@ describe("ChatPanel", () => {
     render(
       <ChatPanel
         {...defaultProps}
-        authConfig={anthropicAuth}
+        authConfig={subscriptionAuth}
         messages={[
           {
             id: "1",
@@ -177,7 +155,7 @@ describe("ChatPanel", () => {
   });
 
   it("disables export when there are no messages", () => {
-    render(<ChatPanel {...defaultProps} authConfig={anthropicAuth} />);
+    render(<ChatPanel {...defaultProps} authConfig={subscriptionAuth} />);
     expect(screen.getByText("Export")).toBeDisabled();
   });
 
@@ -192,7 +170,7 @@ describe("ChatPanel", () => {
     render(
       <ChatPanel
         {...defaultProps}
-        authConfig={anthropicAuth}
+        authConfig={subscriptionAuth}
         title="My Flow"
         messages={[
           {
@@ -217,7 +195,7 @@ describe("ChatPanel", () => {
     render(
       <ChatPanel
         {...defaultProps}
-        authConfig={anthropicAuth}
+        authConfig={subscriptionAuth}
         streamingContent="partial response"
       />
     );
@@ -232,7 +210,7 @@ describe("ChatPanel", () => {
     render(
       <ChatPanel
         {...defaultProps}
-        authConfig={anthropicAuth}
+        authConfig={subscriptionAuth}
         streamingContent=""
       />
     );
@@ -242,7 +220,7 @@ describe("ChatPanel", () => {
   it("calls onSend when submitting message", () => {
     const onSend = vi.fn();
     render(
-      <ChatPanel {...defaultProps} authConfig={anthropicAuth} onSend={onSend} />
+      <ChatPanel {...defaultProps} authConfig={subscriptionAuth} onSend={onSend} />
     );
     const input = screen.getByPlaceholderText("Ask about your diagram...");
     fireEvent.change(input, { target: { value: "test message" } });
@@ -254,7 +232,7 @@ describe("ChatPanel", () => {
     render(
       <ChatPanel
         {...defaultProps}
-        authConfig={anthropicAuth}
+        authConfig={subscriptionAuth}
         streamingContent=""
       />
     );
@@ -262,57 +240,19 @@ describe("ChatPanel", () => {
     expect(input).toBeDisabled();
   });
 
-  it("shows auth form with provider tabs when connect is clicked", () => {
+  it("shows the subscription sign-in when connect is clicked", () => {
     render(<ChatPanel {...defaultProps} />);
     fireEvent.click(screen.getByText("Connect"));
-    expect(screen.getByText("Anthropic")).toBeInTheDocument();
-    expect(screen.getByText("AWS Bedrock")).toBeInTheDocument();
-    expect(screen.getByText("Claude subscription")).toBeInTheDocument();
-  });
-
-  it("saves Anthropic API key", () => {
-    render(<ChatPanel {...defaultProps} />);
-    fireEvent.click(screen.getByText("Connect"));
-    const keyInput = screen.getByPlaceholderText("sk-ant-...");
-    fireEvent.change(keyInput, { target: { value: "sk-ant-test123" } });
-    fireEvent.click(screen.getAllByText("Connect").pop()!);
-    expect(setClaudeAuth).toHaveBeenCalledWith({
-      provider: "anthropic",
-      apiKey: "sk-ant-test123",
-    });
-    expect(defaultProps.onAuthChange).toHaveBeenCalledWith({
-      provider: "anthropic",
-      apiKey: "sk-ant-test123",
-    });
-  });
-
-  it("saves Bedrock credentials", () => {
-    render(<ChatPanel {...defaultProps} />);
-    fireEvent.click(screen.getByText("Connect"));
-    fireEvent.click(screen.getByText("AWS Bedrock"));
-    fireEvent.change(screen.getByPlaceholderText("Access Key ID"), {
-      target: { value: "AKIA123" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Secret Access Key"), {
-      target: { value: "secret123" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Region (us-east-1)"), {
-      target: { value: "us-west-2" },
-    });
-    fireEvent.click(screen.getAllByText("Connect").pop()!);
-    expect(setClaudeAuth).toHaveBeenCalledWith({
-      provider: "bedrock",
-      accessKeyId: "AKIA123",
-      secretAccessKey: "secret123",
-      region: "us-west-2",
-    });
+    expect(screen.getByText("Sign in with Claude")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Sign in with your Claude Pro or Max subscription/)
+    ).toBeInTheDocument();
   });
 
   it("signs in with a Claude subscription", async () => {
     const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
     render(<ChatPanel {...defaultProps} />);
     fireEvent.click(screen.getByText("Connect"));
-    fireEvent.click(screen.getByText("Claude subscription"));
     fireEvent.click(screen.getByText("Sign in with Claude"));
 
     await waitFor(() => expect(createAuthorization).toHaveBeenCalled());
@@ -345,7 +285,6 @@ describe("ChatPanel", () => {
     vi.mocked(exchangeCode).mockRejectedValueOnce(new Error("bad code"));
     render(<ChatPanel {...defaultProps} />);
     fireEvent.click(screen.getByText("Connect"));
-    fireEvent.click(screen.getByText("Claude subscription"));
     fireEvent.click(screen.getByText("Sign in with Claude"));
 
     const codeInput = await screen.findByPlaceholderText(
@@ -358,26 +297,19 @@ describe("ChatPanel", () => {
     expect(setClaudeAuth).not.toHaveBeenCalled();
   });
 
-  it("clears auth on disconnect", () => {
-    render(<ChatPanel {...defaultProps} authConfig={anthropicAuth} />);
-    fireEvent.click(screen.getByText("Disconnect"));
-    expect(clearClaudeAuth).toHaveBeenCalled();
-    expect(clearSubscriptionSession).not.toHaveBeenCalled();
-    expect(defaultProps.onAuthChange).toHaveBeenCalledWith(null);
-  });
-
-  it("clears the server session when disconnecting a subscription", () => {
+  it("clears the server session on disconnect", () => {
     render(<ChatPanel {...defaultProps} authConfig={subscriptionAuth} />);
     fireEvent.click(screen.getByText("Disconnect"));
     expect(clearSubscriptionSession).toHaveBeenCalled();
     expect(clearClaudeAuth).toHaveBeenCalled();
+    expect(defaultProps.onAuthChange).toHaveBeenCalledWith(null);
   });
 
   it("renders user message without color", () => {
     render(
       <ChatPanel
         {...defaultProps}
-        authConfig={anthropicAuth}
+        authConfig={subscriptionAuth}
         messages={[
           {
             id: "1",
@@ -396,7 +328,7 @@ describe("ChatPanel", () => {
     render(
       <ChatPanel
         {...defaultProps}
-        authConfig={anthropicAuth}
+        authConfig={subscriptionAuth}
         messages={[
           {
             id: "1",
@@ -414,7 +346,7 @@ describe("ChatPanel", () => {
   it("does not send empty messages", () => {
     const onSend = vi.fn();
     render(
-      <ChatPanel {...defaultProps} authConfig={anthropicAuth} onSend={onSend} />
+      <ChatPanel {...defaultProps} authConfig={subscriptionAuth} onSend={onSend} />
     );
     const input = screen.getByPlaceholderText("Ask about your diagram...");
     fireEvent.change(input, { target: { value: "   " } });
@@ -422,41 +354,11 @@ describe("ChatPanel", () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
-  it("cancels auth form", () => {
+  it("cancels the sign-in form", () => {
     render(<ChatPanel {...defaultProps} />);
     fireEvent.click(screen.getByText("Connect"));
-    expect(screen.getByPlaceholderText("sk-ant-...")).toBeInTheDocument();
+    expect(screen.getByText("Sign in with Claude")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Cancel"));
-    expect(screen.queryByPlaceholderText("sk-ant-...")).not.toBeInTheDocument();
-  });
-
-  it("does not save empty Anthropic key", () => {
-    render(<ChatPanel {...defaultProps} />);
-    fireEvent.click(screen.getByText("Connect"));
-    fireEvent.click(screen.getAllByText("Connect").pop()!);
-    expect(setClaudeAuth).not.toHaveBeenCalled();
-  });
-
-  it("does not save incomplete Bedrock credentials", () => {
-    render(<ChatPanel {...defaultProps} />);
-    fireEvent.click(screen.getByText("Connect"));
-    fireEvent.click(screen.getByText("AWS Bedrock"));
-    fireEvent.change(screen.getByPlaceholderText("Access Key ID"), {
-      target: { value: "AKIA123" },
-    });
-    fireEvent.click(screen.getAllByText("Connect").pop()!);
-    expect(setClaudeAuth).not.toHaveBeenCalled();
-  });
-
-  it("saves Anthropic key on Enter press", () => {
-    render(<ChatPanel {...defaultProps} />);
-    fireEvent.click(screen.getByText("Connect"));
-    const keyInput = screen.getByPlaceholderText("sk-ant-...");
-    fireEvent.change(keyInput, { target: { value: "sk-ant-enter" } });
-    fireEvent.keyDown(keyInput, { key: "Enter" });
-    expect(setClaudeAuth).toHaveBeenCalledWith({
-      provider: "anthropic",
-      apiKey: "sk-ant-enter",
-    });
+    expect(screen.queryByText("Sign in with Claude")).not.toBeInTheDocument();
   });
 });

@@ -13,7 +13,6 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-runtime": "^3.1052.0",
     "@replit/codemirror-vim": "^6.3.0",
     "@supabase/supabase-js": "^2.106.1",
     "@uiw/react-codemirror": "^4.25.9",

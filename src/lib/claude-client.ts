@@ -1,16 +1,5 @@
-import {
-  BedrockRuntimeClient,
-  InvokeModelWithResponseStreamCommand,
-} from "@aws-sdk/client-bedrock-runtime";
-import {
-  resolveModelId,
-  type AnthropicAuth,
-  type BedrockAuth,
-  type ClaudeAuthConfig,
-} from "./claude-auth";
+import type { ClaudeAuthConfig } from "./claude-auth";
 
-const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
-const MAX_TOKENS = 4096;
 // Safety bound on the number of tool round trips per send so a misbehaving
 // model can't loop forever.
 const MAX_TOOL_ITERATIONS = 8;
@@ -115,25 +104,42 @@ export async function streamChatMessage(options: StreamOptions): Promise<string>
   return combinedText;
 }
 
+// Chat goes through our own same-origin proxy (/api/claude/messages). The
+// subscription OAuth token stays server-side in an httpOnly cookie (sent
+// automatically with this request); the server attaches the bearer, applies the
+// CLI system prefix, refreshes when needed, and streams the SSE back. The
+// browser never holds a secret.
 function runTurn(
   options: StreamOptions,
   messages: ApiMessage[]
 ): Promise<TurnResult> {
-  const opts = { ...options, messages };
-  switch (options.auth.provider) {
-    case "anthropic":
-      return runAnthropicTurn(options.auth, opts);
-    case "subscription":
-      return runSubscriptionTurn(opts);
-    case "bedrock":
-      return runBedrockTurn(options.auth, opts);
-  }
+  return runProxyTurn({ ...options, messages });
+}
+
+async function runProxyTurn({
+  model,
+  systemPrompt,
+  messages,
+  onDelta,
+  tools,
+}: StreamOptions): Promise<TurnResult> {
+  const res = await fetch("/api/claude/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      system: systemPrompt,
+      messages,
+      ...(tools?.length ? { tools } : {}),
+    }),
+  });
+
+  return consumeSseStream(res, onDelta);
 }
 
 /**
- * Accumulates a single streamed turn from Anthropic-format events (used by both
- * the SSE and Bedrock paths): forwards text deltas, collects tool_use blocks,
- * and tracks the stop reason.
+ * Accumulates a single streamed turn from Anthropic-format SSE events: forwards
+ * text deltas, collects tool_use blocks, and tracks the stop reason.
  */
 function createTurnAccumulator(onDelta: (text: string) => void) {
   const blocks = new Map<
@@ -242,96 +248,3 @@ async function consumeSseStream(
   return acc.result();
 }
 
-async function runAnthropicTurn(
-  auth: AnthropicAuth,
-  { model, systemPrompt, messages, onDelta, tools }: StreamOptions
-): Promise<TurnResult> {
-  const res = await fetch(ANTHROPIC_MESSAGES_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": auth.apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
-    },
-    body: JSON.stringify({
-      model: resolveModelId(model, "anthropic"),
-      max_tokens: MAX_TOKENS,
-      system: systemPrompt,
-      messages,
-      ...(tools?.length ? { tools } : {}),
-      stream: true,
-    }),
-  });
-
-  return consumeSseStream(res, onDelta);
-}
-
-// Subscription chat is proxied through our own server route. The OAuth token
-// stays in an httpOnly cookie (sent automatically with this same-origin
-// request); the server attaches the bearer, applies the CLI system prefix, and
-// refreshes the token when needed.
-async function runSubscriptionTurn({
-  model,
-  systemPrompt,
-  messages,
-  onDelta,
-  tools,
-}: StreamOptions): Promise<TurnResult> {
-  const res = await fetch("/api/claude/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      system: systemPrompt,
-      messages,
-      ...(tools?.length ? { tools } : {}),
-    }),
-  });
-
-  return consumeSseStream(res, onDelta);
-}
-
-async function runBedrockTurn(
-  auth: BedrockAuth,
-  { model, systemPrompt, messages, onDelta, tools }: StreamOptions
-): Promise<TurnResult> {
-  const client = new BedrockRuntimeClient({
-    region: auth.region,
-    credentials: {
-      accessKeyId: auth.accessKeyId,
-      secretAccessKey: auth.secretAccessKey,
-      ...(auth.sessionToken ? { sessionToken: auth.sessionToken } : {}),
-    },
-  });
-
-  const body = JSON.stringify({
-    anthropic_version: "bedrock-2023-05-31",
-    max_tokens: MAX_TOKENS,
-    system: systemPrompt,
-    messages,
-    ...(tools?.length ? { tools } : {}),
-    stream: true,
-  });
-
-  const command = new InvokeModelWithResponseStreamCommand({
-    modelId: resolveModelId(model, "bedrock"),
-    contentType: "application/json",
-    accept: "application/json",
-    body: new TextEncoder().encode(body),
-  });
-
-  const response = await client.send(command);
-  const acc = createTurnAccumulator(onDelta);
-
-  if (response.body) {
-    for await (const event of response.body) {
-      if (event.chunk?.bytes) {
-        const parsed = JSON.parse(new TextDecoder().decode(event.chunk.bytes));
-        acc.handle(parsed);
-      }
-    }
-  }
-
-  return acc.result();
-}

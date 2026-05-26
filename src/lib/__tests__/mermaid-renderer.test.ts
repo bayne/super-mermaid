@@ -100,6 +100,18 @@ describe("renderMermaid", () => {
       expect.objectContaining({ suppressErrorRendering: true })
     );
   });
+
+  it("renders with strict security so untrusted diagrams can't inject script", async () => {
+    mockRender.mockResolvedValue({ svg: "<svg/>" } as never);
+
+    // Toggle themes so a (re-)initialize fires regardless of the cached theme
+    // left by earlier tests; securityLevel is identical on every init call.
+    await renderMermaid("graph TD\n  A --> B", "dark");
+    await renderMermaid("graph TD\n  A --> B", "default");
+    expect(mermaid.initialize).toHaveBeenCalledWith(
+      expect.objectContaining({ securityLevel: "strict" })
+    );
+  });
 });
 
 describe("parseErrorLine", () => {

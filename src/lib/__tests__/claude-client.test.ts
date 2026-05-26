@@ -1,27 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-
-const { sendMock } = vi.hoisted(() => ({
-  sendMock: vi.fn(),
-}));
-
-vi.mock("@aws-sdk/client-bedrock-runtime", () => ({
-  BedrockRuntimeClient: class {
-    send = sendMock;
-  },
-  InvokeModelWithResponseStreamCommand: class {
-    input: unknown;
-    constructor(input: unknown) {
-      this.input = input;
-    }
-  },
-}));
-
 import { streamChatMessage } from "../claude-client";
 
 const baseOptions = {
   model: "sonnet-4-6",
   systemPrompt: "system",
   messages: [{ role: "user" as const, content: "hi" }],
+};
+
+const subAuth = {
+  provider: "subscription" as const,
+  expiresAt: Date.now() + 600_000,
 };
 
 function sseResponse(events: object[], ok = true, status = 200): Response {
@@ -71,8 +59,11 @@ describe("streamChatMessage", () => {
     vi.stubGlobal("fetch", fetchMock);
   });
 
-  describe("anthropic", () => {
-    it("streams deltas and returns the full text", async () => {
+  // Chat goes through the same-origin proxy; the OAuth token stays server-side
+  // in an httpOnly cookie, so the request body carries no secret — just the
+  // model, system prompt, and messages.
+  describe("proxying", () => {
+    it("posts to the server route with no secret in the request", async () => {
       fetchMock.mockResolvedValue(
         sseResponse([textDelta("Hello "), textDelta("world")])
       );
@@ -80,7 +71,7 @@ describe("streamChatMessage", () => {
 
       const result = await streamChatMessage({
         ...baseOptions,
-        auth: { provider: "anthropic", apiKey: "sk-ant" },
+        auth: subAuth,
         onDelta,
       });
 
@@ -89,11 +80,15 @@ describe("streamChatMessage", () => {
       expect(onDelta).toHaveBeenNthCalledWith(2, "world");
 
       const [url, init] = fetchMock.mock.calls[0];
-      expect(url).toBe("https://api.anthropic.com/v1/messages");
-      expect(init.headers["x-api-key"]).toBe("sk-ant");
+      expect(url).toBe("/api/claude/messages");
+      expect(init.headers["x-api-key"]).toBeUndefined();
+      expect(init.headers.Authorization).toBeUndefined();
       const sent = JSON.parse(init.body);
-      expect(sent.model).toBe("claude-sonnet-4-6");
-      expect(sent.system).toBe("system");
+      expect(sent).toEqual({
+        model: "sonnet-4-6",
+        system: "system",
+        messages: baseOptions.messages,
+      });
     });
 
     it("throws the API error message on non-ok responses", async () => {
@@ -106,66 +101,10 @@ describe("streamChatMessage", () => {
       await expect(
         streamChatMessage({
           ...baseOptions,
-          auth: { provider: "anthropic", apiKey: "bad" },
+          auth: subAuth,
           onDelta: vi.fn(),
         })
       ).rejects.toThrow("invalid key");
-    });
-
-    it("throws on an error event in the stream", async () => {
-      fetchMock.mockResolvedValue(
-        sseResponse([{ type: "error", error: { message: "boom" } }])
-      );
-
-      await expect(
-        streamChatMessage({
-          ...baseOptions,
-          auth: { provider: "anthropic", apiKey: "sk-ant" },
-          onDelta: vi.fn(),
-        })
-      ).rejects.toThrow("boom");
-    });
-
-    it("falls back to a generic message when the error body is empty", async () => {
-      fetchMock.mockResolvedValue({
-        ok: false,
-        status: 500,
-        json: async () => {
-          throw new Error("no body");
-        },
-      } as unknown as Response);
-
-      await expect(
-        streamChatMessage({
-          ...baseOptions,
-          auth: { provider: "anthropic", apiKey: "sk-ant" },
-          onDelta: vi.fn(),
-        })
-      ).rejects.toThrow("Anthropic API error (500)");
-    });
-  });
-
-  describe("subscription", () => {
-    it("proxies through the same-origin server route without a bearer token", async () => {
-      fetchMock.mockResolvedValue(sseResponse([textDelta("ok")]));
-
-      const result = await streamChatMessage({
-        ...baseOptions,
-        auth: { provider: "subscription", expiresAt: Date.now() + 600_000 },
-        onDelta: vi.fn(),
-      });
-
-      expect(result).toBe("ok");
-
-      const [url, init] = fetchMock.mock.calls[0];
-      expect(url).toBe("/api/claude/messages");
-      expect(init.headers.Authorization).toBeUndefined();
-      const sent = JSON.parse(init.body);
-      expect(sent).toEqual({
-        model: "sonnet-4-6",
-        system: "system",
-        messages: baseOptions.messages,
-      });
     });
 
     it("surfaces a not-signed-in error from the proxy", async () => {
@@ -183,6 +122,38 @@ describe("streamChatMessage", () => {
         })
       ).rejects.toThrow("Not signed in");
     });
+
+    it("throws on an error event in the stream", async () => {
+      fetchMock.mockResolvedValue(
+        sseResponse([{ type: "error", error: { message: "boom" } }])
+      );
+
+      await expect(
+        streamChatMessage({
+          ...baseOptions,
+          auth: subAuth,
+          onDelta: vi.fn(),
+        })
+      ).rejects.toThrow("boom");
+    });
+
+    it("falls back to a generic message when the error body is empty", async () => {
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => {
+          throw new Error("no body");
+        },
+      } as unknown as Response);
+
+      await expect(
+        streamChatMessage({
+          ...baseOptions,
+          auth: subAuth,
+          onDelta: vi.fn(),
+        })
+      ).rejects.toThrow("Anthropic API error (500)");
+    });
   });
 
   describe("tool use", () => {
@@ -198,7 +169,7 @@ describe("streamChatMessage", () => {
 
       const result = await streamChatMessage({
         ...baseOptions,
-        auth: { provider: "anthropic", apiKey: "sk-ant" },
+        auth: subAuth,
         tools: [editorTool],
         onToolUse,
         onDelta,
@@ -236,7 +207,7 @@ describe("streamChatMessage", () => {
 
       await streamChatMessage({
         ...baseOptions,
-        auth: { provider: "anthropic", apiKey: "sk-ant" },
+        auth: subAuth,
         tools: [editorTool],
         onDelta: vi.fn(),
       });
@@ -254,7 +225,7 @@ describe("streamChatMessage", () => {
 
       await streamChatMessage({
         ...baseOptions,
-        auth: { provider: "anthropic", apiKey: "sk-ant" },
+        auth: subAuth,
         tools: [editorTool],
         onToolUse: () => {
           throw new Error("editor offline");
@@ -271,7 +242,7 @@ describe("streamChatMessage", () => {
 
       await streamChatMessage({
         ...baseOptions,
-        auth: { provider: "anthropic", apiKey: "sk-ant" },
+        auth: subAuth,
         onDelta: vi.fn(),
       });
 
@@ -306,88 +277,11 @@ describe("streamChatMessage", () => {
 
       const result = await streamChatMessage({
         ...baseOptions,
-        auth: { provider: "anthropic", apiKey: "sk-ant" },
+        auth: subAuth,
         onDelta: vi.fn(),
       });
 
       expect(result).toBe("real");
-    });
-  });
-
-  describe("bedrock", () => {
-    async function* bedrockStream(events: object[]) {
-      const encoder = new TextEncoder();
-      for (const event of events) {
-        yield { chunk: { bytes: encoder.encode(JSON.stringify(event)) } };
-      }
-    }
-
-    it("streams deltas from the Bedrock SDK", async () => {
-      sendMock.mockResolvedValue({
-        body: bedrockStream([textDelta("Bed"), textDelta("rock")]),
-      });
-      const onDelta = vi.fn();
-
-      const result = await streamChatMessage({
-        ...baseOptions,
-        auth: {
-          provider: "bedrock",
-          accessKeyId: "AKIA",
-          secretAccessKey: "secret",
-          region: "us-east-1",
-        },
-        onDelta,
-      });
-
-      expect(result).toBe("Bedrock");
-      expect(onDelta).toHaveBeenCalledTimes(2);
-    });
-
-    it("runs a tool round trip over the Bedrock stream", async () => {
-      sendMock
-        .mockResolvedValueOnce({
-          body: bedrockStream(toolUseEvents("tu_1", "update_editor", { code: "graph TD" })),
-        })
-        .mockResolvedValueOnce({ body: bedrockStream([textDelta("done")]) });
-
-      const onToolUse = vi.fn().mockResolvedValue("applied");
-
-      const result = await streamChatMessage({
-        ...baseOptions,
-        auth: {
-          provider: "bedrock",
-          accessKeyId: "AKIA",
-          secretAccessKey: "secret",
-          region: "us-east-1",
-        },
-        tools: [editorTool],
-        onToolUse,
-        onDelta: vi.fn(),
-      });
-
-      expect(onToolUse).toHaveBeenCalledWith("update_editor", { code: "graph TD" });
-      expect(result).toContain("done");
-      expect(sendMock).toHaveBeenCalledTimes(2);
-    });
-
-    it("throws on a bedrock stream error event", async () => {
-      sendMock.mockResolvedValue({
-        body: bedrockStream([{ type: "error", error: { message: "throttled" } }]),
-      });
-
-      await expect(
-        streamChatMessage({
-          ...baseOptions,
-          auth: {
-            provider: "bedrock",
-            accessKeyId: "AKIA",
-            secretAccessKey: "secret",
-            region: "us-east-1",
-            sessionToken: "tok",
-          },
-          onDelta: vi.fn(),
-        })
-      ).rejects.toThrow("throttled");
     });
   });
 });

@@ -7,7 +7,6 @@ import {
   setSelectedModel,
   MODELS,
   type ClaudeAuthConfig,
-  type Provider,
 } from "@/lib/claude-auth";
 import {
   createAuthorization,
@@ -17,12 +16,6 @@ import {
 import type { ChatMessage } from "@/lib/types";
 import { Markdown } from "./markdown";
 import { downloadConversation } from "@/lib/chat-export";
-
-const PROVIDER_LABELS: Record<Provider, string> = {
-  anthropic: "Anthropic",
-  bedrock: "AWS Bedrock",
-  subscription: "Claude subscription",
-};
 
 interface Props {
   messages: ChatMessage[];
@@ -65,7 +58,7 @@ export function ChatPanel({
   }
 
   function handleDisconnect() {
-    if (authConfig?.provider === "subscription") clearSubscriptionSession();
+    clearSubscriptionSession();
     clearClaudeAuth();
     onAuthChange(null);
   }
@@ -93,7 +86,7 @@ export function ChatPanel({
           Shared Claude Chat
           {authConfig && (
             <span className="ml-1.5 font-normal text-gray-400 dark:text-gray-500">
-              via {PROVIDER_LABELS[authConfig.provider]}
+              via Claude subscription
             </span>
           )}
         </span>
@@ -137,10 +130,12 @@ export function ChatPanel({
       </div>
 
       {showAuthForm && !isConnected && (
-        <AuthForm
-          onSave={handleAuthSave}
-          onCancel={() => setShowAuthForm(false)}
-        />
+        <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
+          <SubscriptionLogin
+            onSave={handleAuthSave}
+            onCancel={() => setShowAuthForm(false)}
+          />
+        </div>
       )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-2">
@@ -199,133 +194,6 @@ export function ChatPanel({
           Send
         </button>
       </form>
-    </div>
-  );
-}
-
-function AuthForm({
-  onSave,
-  onCancel,
-}: {
-  onSave: (config: ClaudeAuthConfig) => void;
-  onCancel: () => void;
-}) {
-  const [provider, setProvider] = useState<Provider>("anthropic");
-  const [apiKey, setApiKey] = useState("");
-  const [accessKeyId, setAccessKeyId] = useState("");
-  const [secretAccessKey, setSecretAccessKey] = useState("");
-  const [region, setRegion] = useState("us-east-1");
-  const [sessionToken, setSessionToken] = useState("");
-
-  function handleSave() {
-    if (provider === "anthropic") {
-      if (!apiKey.trim()) return;
-      onSave({ provider: "anthropic", apiKey: apiKey.trim() });
-    } else if (provider === "bedrock") {
-      if (!accessKeyId.trim() || !secretAccessKey.trim()) return;
-      onSave({
-        provider: "bedrock",
-        accessKeyId: accessKeyId.trim(),
-        secretAccessKey: secretAccessKey.trim(),
-        region: region.trim() || "us-east-1",
-        ...(sessionToken.trim() ? { sessionToken: sessionToken.trim() } : {}),
-      });
-    }
-  }
-
-  const inputClass =
-    "w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200";
-
-  return (
-    <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
-      <div className="mb-2 flex gap-1">
-        {(Object.keys(PROVIDER_LABELS) as Provider[]).map((p) => (
-          <button
-            key={p}
-            type="button"
-            onClick={() => setProvider(p)}
-            className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-              provider === p
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200 text-gray-600 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-            }`}
-          >
-            {PROVIDER_LABELS[p]}
-          </button>
-        ))}
-      </div>
-
-      {provider === "anthropic" && (
-        <div className="flex flex-col gap-1.5">
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="sk-ant-..."
-            className={inputClass}
-            onKeyDown={(e) => e.key === "Enter" && handleSave()}
-          />
-        </div>
-      )}
-
-      {provider === "bedrock" && (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={accessKeyId}
-              onChange={(e) => setAccessKeyId(e.target.value)}
-              placeholder="Access Key ID"
-              className={inputClass + " flex-1"}
-            />
-            <input
-              type="password"
-              value={secretAccessKey}
-              onChange={(e) => setSecretAccessKey(e.target.value)}
-              placeholder="Secret Access Key"
-              className={inputClass + " flex-1"}
-            />
-          </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={region}
-              onChange={(e) => setRegion(e.target.value)}
-              placeholder="Region (us-east-1)"
-              className={inputClass + " flex-1"}
-            />
-            <input
-              type="text"
-              value={sessionToken}
-              onChange={(e) => setSessionToken(e.target.value)}
-              placeholder="Session Token (optional)"
-              className={inputClass + " flex-1"}
-              onKeyDown={(e) => e.key === "Enter" && handleSave()}
-            />
-          </div>
-        </div>
-      )}
-
-      {provider === "subscription" ? (
-        <SubscriptionLogin onSave={onSave} onCancel={onCancel} />
-      ) : (
-        <div className="mt-2 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700"
-          >
-            Connect
-          </button>
-        </div>
-      )}
     </div>
   );
 }

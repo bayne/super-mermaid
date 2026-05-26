@@ -6,7 +6,12 @@ function ensureInitialized(theme: "default" | "dark") {
   if (currentTheme === theme) return;
   mermaid.initialize({
     startOnLoad: false,
-    securityLevel: "loose",
+    // Diagram source is untrusted: it's authored by any collaborator in a
+    // shared room and the resulting SVG is injected via dangerouslySetInnerHTML
+    // (see PreviewPanel). "strict" keeps mermaid's DOMPurify sanitization on and
+    // disables click/JS directives, so a malicious diagram can't run script in
+    // collaborators' browsers. Do NOT relax this to "loose"/"antiscript".
+    securityLevel: "strict",
     // Without this, a parse error makes mermaid draw its "bomb" error
     // diagram into a temp <div> appended to document.body and then throw
     // before cleaning it up, leaving the bomb orphaned at the bottom of the

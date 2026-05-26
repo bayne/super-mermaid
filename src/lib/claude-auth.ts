@@ -1,65 +1,40 @@
 const STORAGE_KEY = "super-mermaid-claude-auth";
 const MODEL_KEY = "super-mermaid-claude-model";
 
-export interface AnthropicAuth {
-  provider: "anthropic";
-  apiKey: string;
-}
-
-export interface BedrockAuth {
-  provider: "bedrock";
-  accessKeyId: string;
-  secretAccessKey: string;
-  region: string;
-  sessionToken?: string;
-}
-
 /**
- * Client-side marker for a Claude.ai (Pro/Max) subscription session. The actual
- * OAuth tokens live in an httpOnly cookie managed server-side (see
- * claude-oauth-server.ts), never in localStorage. `expiresAt` (epoch ms) is kept
- * only to show connection status; the server owns refresh.
+ * Client-side marker for a Claude.ai (Pro/Max) subscription session — the only
+ * supported provider. The OAuth tokens live solely in an httpOnly cookie
+ * (see claude-oauth-server.ts) and the chat is proxied server-side, so an XSS in
+ * the untrusted shared diagram can't read a credential — only drive the proxy.
+ * `expiresAt` (epoch ms) is kept just to show connection status.
  */
 export interface SubscriptionAuth {
   provider: "subscription";
   expiresAt: number;
 }
 
-export type ClaudeAuthConfig = AnthropicAuth | BedrockAuth | SubscriptionAuth;
+export type ClaudeAuthConfig = SubscriptionAuth;
 export type Provider = ClaudeAuthConfig["provider"];
 
 /**
  * Model selection is intentionally decoupled from auth: a model is picked by its
- * logical id and resolved to the concrete id the active provider expects. The
- * `anthropic` id is also used for the subscription provider (both hit the
- * Anthropic Messages API).
+ * logical id and resolved to the concrete Anthropic id at request time.
  */
 export const MODELS = [
-  {
-    id: "sonnet-4-6",
-    label: "Sonnet 4.6",
-    anthropic: "claude-sonnet-4-6",
-    bedrock: "us.anthropic.claude-sonnet-4-6-v1:0",
-  },
-  {
-    id: "opus-4-6",
-    label: "Opus 4.6",
-    anthropic: "claude-opus-4-6",
-    bedrock: "us.anthropic.claude-opus-4-6-v1[1m]",
-  },
+  { id: "sonnet-4-6", label: "Sonnet 4.6", anthropic: "claude-sonnet-4-6" },
+  { id: "opus-4-6", label: "Opus 4.6", anthropic: "claude-opus-4-6" },
   {
     id: "haiku-4-5",
     label: "Haiku 4.5",
     anthropic: "claude-haiku-4-5-20251001",
-    bedrock: "us.anthropic.claude-haiku-4-5-v1:0",
   },
 ] as const;
 
 export const DEFAULT_MODEL = MODELS[0].id;
 
-export function resolveModelId(modelId: string, provider: Provider): string {
+export function resolveModelId(modelId: string): string {
   const model = MODELS.find((m) => m.id === modelId) ?? MODELS[0];
-  return provider === "bedrock" ? model.bedrock : model.anthropic;
+  return model.anthropic;
 }
 
 export function getClaudeAuth(): ClaudeAuthConfig | null {

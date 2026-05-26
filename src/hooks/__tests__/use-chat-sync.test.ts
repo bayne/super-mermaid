@@ -31,9 +31,9 @@ import { streamChatMessage } from "@/lib/claude-client";
 
 const mockStreamChatMessage = vi.mocked(streamChatMessage);
 
-const anthropicAuth = {
-  provider: "anthropic" as const,
-  apiKey: "sk-ant-test",
+const subscriptionAuth = {
+  provider: "subscription" as const,
+  expiresAt: Date.now() + 600_000,
 };
 
 function createMockChannel() {
@@ -282,7 +282,7 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "Hello",
           "graph TD",
-          anthropicAuth,
+          subscriptionAuth,
           "sonnet-4-6",
           "Alice",
           "#E63946"
@@ -320,7 +320,7 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "Hello",
           "graph TD",
-          { provider: "anthropic", apiKey: "bad-key" },
+          subscriptionAuth,
           "sonnet-4-6",
           "Alice",
           "#E63946"
@@ -350,7 +350,7 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "Q",
           "graph TD",
-          anthropicAuth,
+          subscriptionAuth,
           "sonnet-4-6",
           "Alice",
           "#E63946"
@@ -367,7 +367,7 @@ describe("useChatSync", () => {
       expect(result.current.streamingContent).toBeNull();
     });
 
-    it("passes Anthropic auth and selected model to streamChatMessage", async () => {
+    it("passes the auth marker and selected model to streamChatMessage", async () => {
       const channel = createMockChannel();
       mockHistoryData([]);
 
@@ -381,7 +381,7 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "Hello",
           "graph TD",
-          anthropicAuth,
+          subscriptionAuth,
           "opus-4-6",
           "Alice",
           "#E63946"
@@ -390,49 +390,9 @@ describe("useChatSync", () => {
 
       expect(mockStreamChatMessage).toHaveBeenCalledWith(
         expect.objectContaining({
-          auth: { provider: "anthropic", apiKey: "sk-ant-test" },
+          auth: subscriptionAuth,
           model: "opus-4-6",
           messages: [{ role: "user", content: "Hello" }],
-        })
-      );
-    });
-
-    it("passes Bedrock auth config to streamChatMessage", async () => {
-      const channel = createMockChannel();
-      mockHistoryData([]);
-
-      mockStreamChatMessage.mockResolvedValue("");
-
-      const { result } = renderHook(() =>
-        useChatSync(channel as never, "test-diagram")
-      );
-
-      await act(async () => {
-        await result.current.sendMessage(
-          "Hello",
-          "graph TD",
-          {
-            provider: "bedrock",
-            accessKeyId: "AKIA123",
-            secretAccessKey: "secret",
-            region: "us-west-2",
-            sessionToken: "token",
-          },
-          "sonnet-4-6",
-          "Alice",
-          "#E63946"
-        );
-      });
-
-      expect(mockStreamChatMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          auth: {
-            provider: "bedrock",
-            accessKeyId: "AKIA123",
-            secretAccessKey: "secret",
-            region: "us-west-2",
-            sessionToken: "token",
-          },
         })
       );
     });
@@ -483,7 +443,7 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "put it in the editor",
           "graph TD",
-          anthropicAuth,
+          subscriptionAuth,
           "sonnet-4-6",
           "Alice",
           "#E63946"
@@ -514,7 +474,7 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "hi",
           "graph TD",
-          anthropicAuth,
+          subscriptionAuth,
           "sonnet-4-6",
           "Alice",
           "#E63946"
@@ -539,7 +499,7 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "hi",
           "graph TD",
-          anthropicAuth,
+          subscriptionAuth,
           "sonnet-4-6",
           "Alice",
           "#E63946"
@@ -563,7 +523,7 @@ describe("useChatSync", () => {
         await result.current.sendMessage(
           "Hello",
           "graph TD\n  A-->B",
-          anthropicAuth,
+          subscriptionAuth,
           "sonnet-4-6",
           "Alice",
           "#E63946"
